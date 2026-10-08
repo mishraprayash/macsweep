@@ -1,0 +1,103 @@
+# Xcode, simulators and CocoaPods.
+
+- id: xcode-derived-data
+  category: "Dev: Apple"
+  match:
+    path: "~/Library/Developer/Xcode/DerivedData"
+  tier: SAFE
+  description: "Xcode build products and indexes."
+  regenerate_hint: "rebuilt on the next Xcode build"
+
+- id: xcode-device-support
+  category: "Dev: Apple"
+  match:
+    path:
+      - "~/Library/Developer/Xcode/iOS DeviceSupport"
+      - "~/Library/Developer/Xcode/watchOS DeviceSupport"
+      - "~/Library/Developer/Xcode/tvOS DeviceSupport"
+      - "~/Library/Developer/Xcode/visionOS DeviceSupport"
+  tier: CAUTION
+  description: "Debug symbols copied from connected devices, one folder per OS version."
+  regenerate_hint: "re-copied when a device with that OS version is connected"
+
+- id: xcode-simulators
+  category: "Dev: Apple"
+  match:
+    path: "~/Library/Developer/CoreSimulator/Devices"
+  tier: CAUTION
+  description: "iOS/watchOS simulator devices and their app data."
+  regenerate_hint: "xcrun simctl delete unavailable removes simulators for runtimes no longer installed"
+  native_clean: ["xcrun", "simctl", "delete", "unavailable"]
+  native_only: true
+
+- id: xcode-archives
+  category: "Dev: Apple"
+  match:
+    path: "~/Library/Developer/Xcode/Archives"
+  tier: REVIEW
+  description: "Archived app builds, including dSYMs needed to symbolicate crash reports for shipped versions."
+
+- id: cocoapods-pods
+  category: "Dev: Apple"
+  match:
+    dir_name: Pods
+    require_sibling_any: [Podfile]
+    project: true
+  tier: SAFE
+  description: "CocoaPods dependencies."
+  regenerate_hint: "pod install"
+  stale_after_days: 30
+
+- id: cocoapods-cache
+  category: "Dev: Apple"
+  match:
+    path: "~/Library/Caches/CocoaPods"
+  tier: SAFE
+  description: "CocoaPods download cache."
+  regenerate_hint: "refilled on the next pod install"
+
+- id: simulator-caches
+  category: "Dev: Apple"
+  match:
+    path: "~/Library/Developer/CoreSimulator/Caches"
+  tier: SAFE
+  description: "Simulator dyld and runtime caches."
+  regenerate_hint: "rebuilt when a simulator boots"
+
+- id: simulator-runtimes
+  category: "Dev: Apple"
+  match:
+    path: ["/Library/Developer/CoreSimulator/Volumes", "/Library/Developer/CoreSimulator/Images"]
+  tier: REVIEW
+  description: "Installed simulator runtimes (several GB each). Remove ones you no longer target in Xcode > Settings > Platforms, or with 'xcrun simctl runtime delete'."
+
+- id: xcode-extra-caches
+  category: "Dev: Apple"
+  match:
+    path:
+      - "~/Library/Developer/Xcode/UserData/Previews"
+      - "~/Library/Developer/Xcode/iOS Device Logs"
+      - "~/Library/Developer/Xcode/DocumentationCache"
+      - "~/Library/Developer/XCPGDevices"
+  tier: SAFE
+  description: "SwiftUI preview simulators, device logs, documentation cache and playground devices."
+  regenerate_hint: "recreated by Xcode when needed"
+
+- id: xctest-devices
+  category: "Dev: Apple"
+  match:
+    path: "~/Library/Developer/XCTestDevices"
+  tier: CAUTION
+  description: "Simulator clones created for parallel testing."
+  regenerate_hint: "recreated on the next parallel test run"
+
+- id: swift-build
+  category: "Dev: Apple"
+  match:
+    dir_name: .build
+    require_sibling_any: [Package.swift]
+    project: true
+  tier: SAFE
+  description: "Swift Package Manager build output."
+  regenerate_hint: "swift build"
+  stale_after_days: 30

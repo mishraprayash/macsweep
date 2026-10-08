@@ -1,0 +1,153 @@
+# App caches outside ~/Library/Caches: Electron/Chromium apps (VS Code,
+# Slack, Discord, Notion, Postman, Chrome, ...), sandboxed App Store apps,
+# and a few large, well-known app stores of downloadable content.
+#
+# Chromium cache folders are matched by name, but only next to Chromium's own
+# profile files ("Local State", "Preferences", "Network Persistent State"), so
+# a folder that merely happens to be called "Cache" is never touched.
+
+- id: chromium-gpu-caches
+  category: "App caches"
+  match:
+    dir_name: [GPUCache, "Code Cache", DawnCache, DawnGraphiteCache, DawnWebGPUCache, GrShaderCache, GraphiteDawnCache, ShaderCache, GPUPersistentCache]
+    require_sibling_any: ["Local State", Preferences]
+    under: "~/Library"
+  tier: SAFE
+  description: "Compiled-code and GPU shader caches of an Electron app or Chromium browser (VS Code, Slack, Discord, Chrome, ...)."
+  regenerate_hint: "rebuilt by the app on its next launch (quit it first)"
+
+- id: chromium-http-cache
+  category: "App caches"
+  match:
+    dir_name: Cache
+    require_sibling_any: ["Local State", "Network Persistent State"]
+    under: "~/Library"
+  tier: SAFE
+  description: "Web cache of an Electron app (images, scripts and API responses it downloaded)."
+  regenerate_hint: "downloaded again as the app needs it (quit it first)"
+
+- id: chromium-service-worker-cache
+  category: "App caches"
+  match:
+    dir_name: CacheStorage
+    require_sibling_any: [ScriptCache, Database]
+    under: "~/Library"
+  tier: CAUTION
+  description: "Offline copies kept by web apps' service workers (Notion, Slack, web apps in Chrome profiles). Pages work offline less until they are visited again."
+  regenerate_hint: "refilled as you use the app or site online"
+
+- id: crashpad-dumps
+  category: "App caches"
+  match:
+    dir_name: Crashpad
+    require_child_any: [settings.dat, completed, pending]
+    under: "~/Library"
+  tier: SAFE
+  description: "Crash dumps collected by an Electron app or Chromium browser."
+  regenerate_hint: "not needed; recreated empty by the app"
+
+- id: vscode-caches
+  category: "App caches"
+  match:
+    dir_name: [CachedExtensionVSIXs, CachedData, CachedProfilesData, CachedConfigurations]
+    require_sibling_any: ["Local State"]
+    under: "~/Library/Application Support"
+  tier: SAFE
+  description: "VS Code (and Cursor, Windsurf, VSCodium, ...) caches: downloaded extension packages and compiled startup code."
+  regenerate_hint: "rebuilt on the next launch; extensions re-download when updated"
+
+- id: vscode-old-workspace-storage
+  category: "App caches"
+  match:
+    glob: "~/Library/Application Support/*/User/workspaceStorage/*"
+    require_child_any: [workspace.json]
+    min_age_days: 90
+  tier: CAUTION
+  description: "Editor state for a folder you have not opened in VS Code (or a fork) for 90+ days: open tabs, AI chat history, extension data for that workspace."
+  regenerate_hint: "recreated empty the next time you open that folder"
+
+- id: sandboxed-app-caches
+  category: "App caches"
+  match:
+    glob: ["~/Library/Containers/*/Data/Library/Caches", "~/Library/Group Containers/*/Library/Caches"]
+  tier: SAFE
+  description: "Cache folder of a sandboxed (App Store) app. Apps recreate caches as needed (quit the app first)."
+  regenerate_hint: "recreated by the app"
+
+- id: apple-sandboxed-caches
+  category: "App caches"
+  match:
+    glob: ["~/Library/Containers/com.apple.*/Data/Library/Caches", "~/Library/Group Containers/group.com.apple.*/Library/Caches"]
+  tier: CAUTION
+  description: "Cache folder of a sandboxed Apple app or agent. Rebuilt by macOS, but some hold state that is slow to restore."
+  regenerate_hint: "recreated by macOS"
+
+- id: system-caches
+  category: "System: Caches"
+  match:
+    glob: "/Library/Caches/*"
+  tier: CAUTION
+  description: "System-wide caches shared by all users. Usually needs an administrator to clean."
+  regenerate_hint: "recreated by the app or macOS"
+
+- id: app-crash-reports
+  category: "System: Logs"
+  match:
+    path: "~/Library/Application Support/CrashReporter"
+  tier: SAFE
+  description: "Crash reporter state and pending reports."
+  clean_contents: true
+
+- id: ios-software-updates
+  category: "System: Device backups"
+  match:
+    glob: "~/Library/iTunes/* Software Updates"
+  tier: SAFE
+  description: "iPhone/iPad/iPod system update files (.ipsw) downloaded by Finder or iTunes."
+  regenerate_hint: "downloaded again when you update or restore a device"
+
+- id: adobe-media-cache
+  category: "App caches"
+  match:
+    path:
+      - "~/Library/Application Support/Adobe/Common/Media Cache Files"
+      - "~/Library/Application Support/Adobe/Common/Media Cache"
+      - "~/Library/Application Support/Adobe/Common/Peak Files"
+  tier: SAFE
+  description: "Adobe Premiere/After Effects/Audition media cache (conformed audio, peak files, indexes)."
+  regenerate_hint: "rebuilt when the project is opened again"
+
+- id: spotify-cache
+  category: "App caches"
+  match:
+    path: "~/Library/Application Support/Spotify/PersistentCache"
+  tier: SAFE
+  description: "Spotify streaming cache (not your offline downloads' settings)."
+  regenerate_hint: "refilled as you listen (quit Spotify first)"
+
+- id: game-libraries
+  category: "Apps: Games"
+  match:
+    path:
+      - "~/Library/Application Support/Steam/steamapps"
+      - "~/Library/Application Support/Epic"
+      - "~/Library/Application Support/Battle.net"
+  tier: REVIEW
+  description: "Installed games. Uninstall games you no longer play from the launcher."
+
+- id: audio-content-libraries
+  category: "Apps: Media content"
+  match:
+    path:
+      - "/Library/Application Support/GarageBand"
+      - "/Library/Application Support/Logic"
+      - "/Library/Audio/Apple Loops"
+  tier: REVIEW
+  description: "GarageBand/Logic sound libraries and Apple Loops. Remove them from inside the app (Sound Library > Remove)."
+
+- id: ai-app-vm-bundles
+  category: "Apps: AI tools"
+  match:
+    glob: "~/Library/Application Support/Claude*/vm_bundles"
+  tier: REVIEW
+  description: "Virtual machine image used by the Claude desktop app's agent features. The app downloads it again if removed; turn the feature off in the app to free it."

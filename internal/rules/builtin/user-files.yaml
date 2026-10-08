@@ -1,0 +1,36 @@
+# Large or old personal files. Always REVIEW: sweep lists them, you decide.
+
+- id: old-downloads
+  category: "User files: Downloads"
+  match:
+    glob: "~/Downloads/*"
+    min_age_days: 30
+  tier: REVIEW
+  description: "Item in Downloads untouched for over 30 days."
+
+- id: large-media
+  category: "User files: Large media"
+  match:
+    ext: [.mov, .mp4, .mkv, .avi, .m4v]
+    min_size: 500MB
+    user_files: true
+  tier: REVIEW
+  description: "Video file over 500 MB."
+
+- id: large-archives
+  category: "User files: Large media"
+  match:
+    ext: [.iso, .zip, .img]
+    min_size: 500MB
+    user_files: true
+  tier: REVIEW
+  description: "Disk image or archive over 500 MB."
+
+- id: installers
+  category: "User files: Installers"
+  match:
+    ext: [.dmg, .pkg, .xip]
+    min_age_days: 14
+    user_files: true
+  tier: REVIEW
+  description: "Installer or disk image older than 14 days; the app is probably installed already."

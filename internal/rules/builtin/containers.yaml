@@ -1,0 +1,42 @@
+# Containers and virtual machines.
+
+- id: docker-desktop-disk
+  category: "Containers & VMs"
+  match:
+    glob: "~/Library/Containers/com.docker.docker/Data/vms/*/data/Docker.raw"
+    type: file
+  tier: CAUTION
+  description: "Docker Desktop's VM disk (sparse; size shown is real usage). Holds all images, containers and volumes. Never delete the file itself."
+  regenerate_hint: "docker system prune reclaims unused images, containers and build cache"
+  native_clean: ["docker", "system", "prune", "--force"]
+  native_only: true
+
+- id: orbstack-data
+  category: "Containers & VMs"
+  match:
+    path: ["~/.orbstack", "~/Library/Group Containers/HUAQ24HBR6.dev.orbstack"]
+  tier: REVIEW
+  description: "OrbStack containers, images and Linux machines."
+
+- id: colima-lima-vms
+  category: "Containers & VMs"
+  match:
+    path: ["~/.colima", "~/.lima"]
+  tier: REVIEW
+  description: "Colima / Lima virtual machine disks."
+
+- id: utm-vms
+  category: "Containers & VMs"
+  match:
+    path: "~/Library/Containers/com.utmapp.UTM/Data/Documents"
+  tier: REVIEW
+  description: "UTM virtual machines."
+
+- id: vm-bundles
+  category: "Containers & VMs"
+  match:
+    name: ["*.pvm", "*.vmwarevm", "*.utm"]
+    type: dir
+    under: "~"
+  tier: REVIEW
+  description: "Parallels / VMware / UTM virtual machine bundle."

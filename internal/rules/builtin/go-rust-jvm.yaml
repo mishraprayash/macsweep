@@ -1,0 +1,113 @@
+# Go, Rust and JVM build outputs and caches.
+
+- id: go-build-cache
+  category: "Dev: Go"
+  match:
+    path: "~/Library/Caches/go-build"
+  tier: SAFE
+  description: "Go build cache."
+  regenerate_hint: "rebuilt on the next go build"
+  native_clean: ["go", "clean", "-cache"]
+
+- id: go-mod-cache
+  category: "Dev: Go"
+  match:
+    path: "~/go/pkg/mod"
+  tier: CAUTION
+  description: "Go module download cache (read-only files; use go clean)."
+  regenerate_hint: "re-downloaded on the next go build (needs network)"
+  native_clean: ["go", "clean", "-modcache"]
+
+- id: rust-target
+  category: "Dev: Rust"
+  match:
+    dir_name: target
+    require_sibling_any: [Cargo.toml]
+    project: true
+  tier: SAFE
+  description: "Cargo build output."
+  regenerate_hint: "cargo build"
+  stale_after_days: 30
+
+- id: cargo-registry
+  category: "Dev: Rust"
+  match:
+    path: ["~/.cargo/registry", "~/.cargo/git"]
+  tier: CAUTION
+  description: "Cargo crate download cache, sources and git checkouts."
+  regenerate_hint: "re-downloaded on the next cargo build (needs network)"
+
+- id: gradle-project
+  category: "Dev: JVM"
+  match:
+    dir_name: .gradle
+    require_sibling_any: [build.gradle, build.gradle.kts, settings.gradle, settings.gradle.kts, gradlew]
+    project: true
+  tier: CAUTION
+  description: "Per-project Gradle state and caches."
+  regenerate_hint: "./gradlew build"
+  stale_after_days: 30
+
+- id: gradle-caches
+  category: "Dev: JVM"
+  match:
+    path: "~/.gradle/caches"
+  tier: CAUTION
+  description: "Gradle dependency and build cache."
+  regenerate_hint: "re-downloaded on the next Gradle build (needs network)"
+
+- id: maven-repo
+  category: "Dev: JVM"
+  match:
+    path: "~/.m2/repository"
+  tier: CAUTION
+  description: "Maven local repository (downloaded dependencies)."
+  regenerate_hint: "re-downloaded on the next mvn build (needs network)"
+
+- id: go-build-cache-copies
+  category: "Dev: Go"
+  match:
+    dir_name: go-build
+    require_child_any: [trim.txt]
+    under: "~"
+  tier: SAFE
+  description: "A Go build cache outside the default location (e.g. a tool that runs Go with its own HOME)."
+  regenerate_hint: "rebuilt on the next go build"
+
+- id: maven-target
+  category: "Dev: JVM"
+  match:
+    dir_name: target
+    require_sibling_any: [pom.xml]
+    project: true
+  tier: SAFE
+  description: "Maven build output."
+  regenerate_hint: "mvn package"
+  stale_after_days: 30
+
+- id: gradle-build
+  category: "Dev: JVM"
+  match:
+    dir_name: [build, .cxx, .externalNativeBuild]
+    require_sibling_any: [build.gradle, build.gradle.kts]
+    project: true
+  tier: SAFE
+  description: "Gradle/Android module build output."
+  regenerate_hint: "./gradlew build"
+  stale_after_days: 30
+
+- id: gradle-wrapper-dists
+  category: "Dev: JVM"
+  match:
+    path: ["~/.gradle/wrapper/dists", "~/.gradle/daemon"]
+  tier: CAUTION
+  description: "Gradle distributions downloaded by ./gradlew (one per Gradle version) and daemon logs."
+  regenerate_hint: "re-downloaded by the next ./gradlew run (needs network)"
+
+- id: nuget-packages
+  category: "Dev: .NET"
+  match:
+    path: "~/.nuget/packages"
+  tier: CAUTION
+  description: ".NET NuGet package cache."
+  regenerate_hint: "dotnet restore (needs network)"

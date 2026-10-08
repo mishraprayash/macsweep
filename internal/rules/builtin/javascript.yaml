@@ -1,0 +1,100 @@
+# JavaScript / TypeScript project artifacts and package-manager caches.
+# Project artifacts require a package.json beside them so a folder that merely
+# happens to be called "build" or "dist" is never touched.
+
+- id: node-modules
+  category: "Dev: JavaScript"
+  match:
+    dir_name: node_modules
+    require_sibling_any: [package.json]
+    project: true
+  tier: SAFE
+  description: "npm/yarn/pnpm dependencies. Recreated by reinstalling."
+  regenerate_hint: "npm install / pnpm install / yarn"
+  stale_after_days: 30
+
+- id: js-framework-build
+  category: "Dev: JavaScript"
+  match:
+    dir_name: [.next, .nuxt, .output, .svelte-kit, .turbo, .parcel-cache, .vite, .expo, .docusaurus, .astro, .wrangler, .cache, storybook-static]
+    require_sibling_any: [package.json]
+    project: true
+  tier: SAFE
+  description: "Framework build output and caches (Next.js, Nuxt, SvelteKit, Turborepo, Parcel, Vite, Expo, Docusaurus, Astro, Wrangler, Gatsby, Storybook)."
+  regenerate_hint: "rebuilt on the next dev/build run"
+  stale_after_days: 30
+
+- id: angular-cache
+  category: "Dev: JavaScript"
+  match:
+    dir_name: .angular
+    require_sibling_any: [angular.json]
+    project: true
+  tier: SAFE
+  description: "Angular CLI build cache."
+  regenerate_hint: "rebuilt on the next ng build/serve"
+  stale_after_days: 30
+
+- id: js-coverage
+  category: "Dev: JavaScript"
+  match:
+    dir_name: coverage
+    require_sibling_any: [package.json]
+    project: true
+  tier: SAFE
+  description: "Test coverage reports."
+  regenerate_hint: "re-run tests with coverage"
+  stale_after_days: 30
+
+- id: js-build-output
+  category: "Dev: JavaScript"
+  match:
+    dir_name: [dist, build, out]
+    require_sibling_any: [package.json]
+    project: true
+  tier: SAFE
+  description: "Build output of a JavaScript project."
+  regenerate_hint: "npm run build"
+  stale_after_days: 30
+
+- id: npm-cache
+  category: "Dev: JavaScript"
+  match:
+    path: ["~/.npm/_cacache", "~/.npm/_npx", "~/.npm/_logs"]
+  tier: SAFE
+  description: "npm download cache, npx package cache and npm debug logs."
+  regenerate_hint: "refilled on the next npm install"
+
+- id: yarn-cache
+  category: "Dev: JavaScript"
+  match:
+    path: ["~/Library/Caches/Yarn", "~/.yarn/berry/cache"]
+  tier: SAFE
+  description: "Yarn download cache."
+  regenerate_hint: "refilled on the next yarn install"
+
+- id: pnpm-store
+  category: "Dev: JavaScript"
+  match:
+    path: "~/Library/pnpm/store"
+  tier: CAUTION
+  description: "pnpm content-addressable store. Projects hard-link into it, so they need a reinstall afterwards."
+  regenerate_hint: "pnpm install in each project"
+  native_clean: ["pnpm", "store", "prune"]
+
+- id: bun-cache
+  category: "Dev: JavaScript"
+  match:
+    path: "~/.bun/install/cache"
+  tier: SAFE
+  description: "Bun download cache."
+  regenerate_hint: "refilled on the next bun install"
+
+- id: nvm-old-node-versions
+  category: "Dev: JavaScript"
+  synthetic: true # found by sweep's version detector: keeps nvm's default and the active version
+  match:
+    glob: "~/.nvm/versions/node/*"
+  tier: CAUTION
+  description: "An older Node.js version installed with nvm. Your default version and the one active in this shell are kept (nothing is offered if the default is 'system' or unresolvable). Global npm packages under the old version go with it, and anything configured with its full path (an MCP server, a launch agent, an editor setting) stops working."
+  regenerate_hint: "nvm install <version>"

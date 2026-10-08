@@ -1,0 +1,113 @@
+# Caches, downloaded models and old versions kept by command-line tools,
+# mostly in hidden folders in your home folder.
+
+- id: dart-pub-cache
+  category: "Dev: Dart"
+  match:
+    path:
+      - "~/.pub-cache/hosted"
+      - "~/.pub-cache/hosted-hashes"
+      - "~/.pub-cache/git"
+      - "~/.pub-cache/_temp"
+  tier: CAUTION
+  description: "Dart/Flutter package download cache. Projects re-download what they need, but tools installed with 'dart pub global activate' read their sources from here and may need activating again."
+  regenerate_hint: "dart pub get / flutter pub get; dart pub global activate <tool> for global tools"
+
+- id: xdg-cache
+  category: "Dev: Tool caches"
+  match:
+    glob: "~/.cache/*"
+  tier: CAUTION
+  description: "A command-line tool's folder in ~/.cache (the standard cache folder on Linux, used by many cross-platform tools). Usually rebuilt when needed, but some tools keep downloads there that are slow to fetch again; folders containing .git or .env files are never removed."
+  regenerate_hint: "recreated by the tool"
+
+- id: uv-cache
+  category: "Dev: Python"
+  match:
+    path: "~/.cache/uv"
+  tier: SAFE
+  description: "uv package cache."
+  regenerate_hint: "refilled on the next uv sync / uv pip install"
+
+- id: ml-model-caches
+  category: "Dev: ML models"
+  match:
+    path:
+      - "~/.cache/huggingface"
+      - "~/.cache/torch"
+      - "~/.cache/whisper"
+      - "~/.cache/lm-studio"
+      - "~/.cache/modelscope"
+      - "~/.cache/llama.cpp"
+      - "~/.lmstudio/models"
+      - "~/.ollama/models"
+      - "~/.keras/models"
+  tier: REVIEW
+  description: "Downloaded AI models (Hugging Face, PyTorch Hub, Whisper, LM Studio, Ollama, Keras). Re-downloading large models takes a long time."
+  regenerate_hint: "downloaded again the next time the model is loaded (or 'ollama rm <model>' for Ollama)"
+
+
+- id: claude-code-old-versions
+  category: "Dev: Tools"
+  synthetic: true # found by sweep's version detector: keeps the linked and the newest version
+  match:
+    glob: "~/.local/share/claude/versions/*"
+  tier: CAUTION
+  description: "An older Claude Code release. The version ~/.local/bin/claude points to and the newest one are kept; Claude sessions already running keep working."
+  regenerate_hint: "Claude Code updates itself; older releases are not needed"
+
+- id: claude-desktop-old-cli-versions
+  category: "Dev: Tools"
+  synthetic: true # found by sweep's version detector: keeps the newest version
+  match:
+    glob:
+      - "~/Library/Application Support/Claude/claude-code/*"
+      - "~/Library/Application Support/Claude/claude-code-vm/*"
+      - "~/Library/Application Support/Claude-3p/claude-code/*"
+      - "~/Library/Application Support/Claude-3p/claude-code-vm/*"
+  tier: CAUTION
+  description: "An older copy of Claude Code bundled by the Claude desktop app. The newest copy is kept."
+  regenerate_hint: "the desktop app downloads the version it needs"
+
+- id: pipx-tools
+  category: "Dev: Tools"
+  match:
+    glob: "~/.local/pipx/venvs/*"
+  tier: REVIEW
+  description: "A Python tool installed with pipx. Remove it with 'pipx uninstall <name>' if you no longer use it."
+
+- id: language-version-managers
+  category: "Dev: Tools"
+  match:
+    path:
+      - "~/.pyenv/versions"
+      - "~/.rbenv/versions"
+      - "~/.rustup/toolchains"
+      - "~/.sdkman/candidates"
+      - "~/.local/share/mise/installs"
+      - "~/.asdf/installs"
+  tier: REVIEW
+  description: "Installed language versions (pyenv, rbenv, rustup, SDKMAN!, mise, asdf). Remove versions you no longer use with the manager itself."
+
+- id: platformio
+  category: "Dev: Embedded"
+  match:
+    path: ["~/.platformio/.cache", "~/.platformio/packages"]
+  tier: CAUTION
+  description: "PlatformIO download cache and toolchain packages."
+  regenerate_hint: "re-downloaded on the next PlatformIO build (needs network)"
+
+- id: android-sdk-images
+  category: "Dev: Android"
+  match:
+    path: ["~/Library/Android/sdk/system-images", "~/.android/avd"]
+  tier: REVIEW
+  description: "Android emulator system images and virtual devices (several GB each). Remove unused ones in Android Studio's Device Manager / SDK Manager."
+
+- id: android-cache
+  category: "Dev: Android"
+  match:
+    path: ["~/.android/cache", "~/.android/build-cache"]
+  tier: SAFE
+  description: "Android tools download and build cache."
+  regenerate_hint: "refilled on the next build"

@@ -1,0 +1,56 @@
+# Python bytecode, tool caches, virtualenvs and package caches.
+
+- id: python-caches
+  category: "Dev: Python"
+  match:
+    dir_name: [__pycache__, .pytest_cache, .mypy_cache, .ruff_cache, .tox, .nox, .hypothesis]
+    project: true
+  tier: SAFE
+  description: "Python bytecode and tool caches (pytest, mypy, ruff, tox, nox, hypothesis)."
+  regenerate_hint: "recreated automatically on the next run"
+  stale_after_days: 30
+
+- id: python-venv
+  category: "Dev: Python"
+  match:
+    dir_name: [.venv, venv]
+    require_child_any: [pyvenv.cfg]
+    project: true
+  tier: CAUTION
+  description: "Python virtual environment. Recreatable, but needs the project's requirements to rebuild."
+  regenerate_hint: "python -m venv .venv && pip install -r requirements.txt (or uv sync / poetry install)"
+  stale_after_days: 60
+
+- id: pip-cache
+  category: "Dev: Python"
+  match:
+    path: "~/Library/Caches/pip"
+  tier: SAFE
+  description: "pip download and wheel cache."
+  regenerate_hint: "refilled on the next pip install"
+
+- id: conda-pkgs
+  category: "Dev: Python"
+  match:
+    path:
+      - "~/miniconda3/pkgs"
+      - "~/anaconda3/pkgs"
+      - "~/miniforge3/pkgs"
+      - "~/opt/anaconda3/pkgs"
+      - "~/opt/miniconda3/pkgs"
+      - "~/.conda/pkgs"
+  tier: CAUTION
+  description: "conda package cache. Environments may hard-link into it."
+  regenerate_hint: "conda clean --all"
+  native_clean: ["conda", "clean", "--all", "--yes"]
+
+- id: python-build-output
+  category: "Dev: Python"
+  match:
+    dir_name: [build, dist, "*.egg-info", .eggs]
+    require_sibling_any: [setup.py, pyproject.toml, setup.cfg]
+    project: true
+  tier: SAFE
+  description: "Python package build output (wheels, sdists, egg-info)."
+  regenerate_hint: "python -m build / pip install -e ."
+  stale_after_days: 30

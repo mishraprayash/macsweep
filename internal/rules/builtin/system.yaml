@@ -1,0 +1,104 @@
+# The pieces macOS lumps into "System Data".
+
+- id: user-app-caches
+  category: "System: Caches"
+  match:
+    glob: "~/Library/Caches/*"
+  tier: SAFE
+  description: "An app's cache folder. Apps recreate caches as needed (quit the app first)."
+  regenerate_hint: "recreated by the app"
+
+- id: apple-app-caches
+  category: "System: Caches"
+  match:
+    glob: "~/Library/Caches/com.apple.*"
+  tier: CAUTION
+  description: "A macOS/Apple app cache. Safe to rebuild, but some hold sign-in or sync state that is slow to restore."
+  regenerate_hint: "recreated by macOS"
+
+- id: user-logs
+  category: "System: Logs"
+  match:
+    glob: "~/Library/Logs/*"
+  tier: SAFE
+  description: "Application logs."
+
+- id: system-logs
+  category: "System: Logs"
+  match:
+    glob: ["/Library/Logs/*", "/private/var/log/*"]
+  tier: SAFE
+  description: "System and daemon logs. Cleaning /private/var/log requires sudo."
+
+- id: diagnostic-reports
+  category: "System: Logs"
+  match:
+    path: ["~/Library/Logs/DiagnosticReports", "/Library/Logs/DiagnosticReports"]
+  tier: SAFE
+  description: "Crash and hang reports."
+  clean_contents: true
+
+- id: mail-downloads
+  category: "System: Caches"
+  match:
+    path: "~/Library/Containers/com.apple.mail/Data/Library/Mail Downloads"
+  tier: SAFE
+  description: "Copies of Mail attachments you opened. The originals stay in Mail."
+  clean_contents: true
+
+- id: trash
+  category: "System: Trash"
+  match:
+    path: "~/.Trash"
+  tier: SAFE
+  description: "Items in the Trash. Cleaning this empties the Trash permanently."
+  clean_contents: true
+
+- id: ios-backups
+  category: "System: Device backups"
+  match:
+    path: "~/Library/Application Support/MobileSync/Backup"
+  tier: REVIEW
+  description: "iPhone/iPad backups made by Finder. May be your only backup of a device."
+
+- id: vm-swap
+  category: "System: Managed by macOS"
+  match:
+    path: ["/private/var/vm", "/System/Volumes/VM"]
+  tier: PROTECTED
+  description: "Swap files and sleepimage. Managed by macOS; shrinks after a reboot."
+
+- id: var-folders
+  category: "System: Managed by macOS"
+  match:
+    path: "/private/var/folders"
+  tier: PROTECTED
+  description: "Per-user temporary files and caches managed by macOS. A reboot clears much of it."
+
+- id: icloud-drive
+  category: "Personal data"
+  match:
+    path: "~/Library/Mobile Documents"
+  tier: PROTECTED
+  description: "iCloud Drive local copies. Use 'Remove Download' in Finder to free space safely."
+
+- id: photos-library
+  category: "Personal data"
+  match:
+    glob: "~/Pictures/*.photoslibrary"
+  tier: PROTECTED
+  description: "Photos library. Use Photos > Settings > iCloud > Optimize Mac Storage to free space."
+
+- id: mail-data
+  category: "Personal data"
+  match:
+    path: "~/Library/Mail"
+  tier: PROTECTED
+  description: "Mail messages and attachments."
+
+- id: messages-data
+  category: "Personal data"
+  match:
+    path: "~/Library/Messages"
+  tier: PROTECTED
+  description: "Messages history and attachments. Use Messages > Settings to keep messages for less time."

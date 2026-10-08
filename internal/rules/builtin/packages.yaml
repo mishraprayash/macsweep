@@ -1,0 +1,21 @@
+# System package managers.
+
+- id: homebrew-cache
+  category: "Package managers"
+  match:
+    path: "~/Library/Caches/Homebrew"
+  tier: SAFE
+  description: "Homebrew download cache (bottles and source tarballs)."
+  regenerate_hint: "re-downloaded when a formula is installed or upgraded"
+  native_clean: ["brew", "cleanup", "-s"]
+
+- id: homebrew-old-versions
+  category: "Package managers"
+  synthetic: true # found by sweep's Homebrew detector: versions other than the linked one
+  match:
+    glob: ["/opt/homebrew/Cellar/*/*", "/usr/local/Cellar/*/*"]
+  tier: SAFE
+  description: "An older version of a Homebrew formula; the linked (current) version is kept."
+  regenerate_hint: "brew reinstall <formula>@<version> if you ever need it again"
+  native_clean: ["brew", "cleanup"]
+  native_only: true

@@ -1,0 +1,102 @@
+# Build output of other project types. Each rule needs the project's own
+# manifest next to the folder, so a folder that merely shares the name is
+# never touched.
+
+- id: flutter-build
+  category: "Dev: Dart"
+  match:
+    dir_name: [.dart_tool, build]
+    require_sibling_any: [pubspec.yaml]
+    project: true
+  tier: SAFE
+  description: "Dart/Flutter tool state and build output (often several GB per app)."
+  regenerate_hint: "flutter pub get && flutter build"
+  stale_after_days: 30
+
+- id: cmake-build
+  category: "Dev: C/C++"
+  match:
+    dir_name: ["cmake-build-*", build]
+    require_sibling_any: [CMakeLists.txt]
+    project: true
+  tier: SAFE
+  description: "CMake build folder."
+  regenerate_hint: "cmake -B build && cmake --build build"
+  stale_after_days: 30
+
+- id: elixir-build
+  category: "Dev: Elixir"
+  match:
+    dir_name: [_build, deps]
+    require_sibling_any: [mix.exs]
+    project: true
+  tier: SAFE
+  description: "Mix build output and fetched dependencies."
+  regenerate_hint: "mix deps.get && mix compile"
+  stale_after_days: 30
+
+- id: php-vendor
+  category: "Dev: PHP"
+  match:
+    dir_name: vendor
+    require_sibling_any: [composer.json]
+    project: true
+  tier: CAUTION
+  description: "Composer dependencies. Some projects commit vendor/ on purpose; check before cleaning."
+  regenerate_hint: "composer install"
+  stale_after_days: 30
+
+- id: haskell-build
+  category: "Dev: Haskell"
+  match:
+    dir_name: [.stack-work, dist-newstyle]
+    require_sibling_any: [stack.yaml, cabal.project, package.yaml]
+    project: true
+  tier: SAFE
+  description: "Stack/Cabal build output."
+  regenerate_hint: "stack build / cabal build"
+  stale_after_days: 30
+
+- id: zig-build
+  category: "Dev: Zig"
+  match:
+    dir_name: [.zig-cache, zig-cache, zig-out]
+    require_sibling_any: [build.zig]
+    project: true
+  tier: SAFE
+  description: "Zig build cache and output."
+  regenerate_hint: "zig build"
+  stale_after_days: 30
+
+- id: terraform-providers
+  category: "Dev: Infrastructure"
+  match:
+    dir_name: .terraform
+    require_sibling_any: [.terraform.lock.hcl]
+    project: true
+  tier: CAUTION
+  description: "Terraform provider binaries and module copies. Local state backends keep state elsewhere (terraform.tfstate), which is not touched."
+  regenerate_hint: "terraform init"
+  stale_after_days: 30
+
+- id: unity-library
+  category: "Dev: Game engines"
+  match:
+    dir_name: [Library, Temp, Obj, Logs]
+    require_sibling_any: [ProjectSettings]
+    project: true
+  tier: CAUTION
+  description: "Unity's imported-asset cache and temporary build files. Re-importing a large project takes a while."
+  regenerate_hint: "reopen the project in Unity"
+  stale_after_days: 30
+
+- id: godot-cache
+  category: "Dev: Game engines"
+  match:
+    dir_name: [.godot, .import]
+    require_sibling_any: [project.godot]
+    project: true
+  tier: SAFE
+  description: "Godot imported-asset cache."
+  regenerate_hint: "reopen the project in Godot"
+  stale_after_days: 30

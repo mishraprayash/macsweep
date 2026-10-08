@@ -1,0 +1,10 @@
+{"Containers":[
+ {"ContainerReference":"disk1","CapacityCeiling":524288000,"CapacityFree":501399552,"Volumes":[
+   {"DeviceIdentifier":"disk1s1","Name":"iSCPreboot","Roles":["Preboot"],"CapacityInUse":6025216}]},
+ {"ContainerReference":"disk3","CapacityCeiling":494384795648,"CapacityFree":93184000000,"Volumes":[
+   {"DeviceIdentifier":"disk3s1","Name":"Macintosh HD","Roles":["System"],"CapacityInUse":11200000000},
+   {"DeviceIdentifier":"disk3s2","Name":"Preboot","Roles":["Preboot"],"CapacityInUse":7100000000},
+   {"DeviceIdentifier":"disk3s3","Name":"Recovery","Roles":["Recovery"],"CapacityInUse":1300000000},
+   {"DeviceIdentifier":"disk3s5","Name":"Data","Roles":["Data"],"CapacityInUse":380000000000},
+   {"DeviceIdentifier":"disk3s6","Name":"VM","Roles":["VM"],"CapacityInUse":2147483648}]}
+]}

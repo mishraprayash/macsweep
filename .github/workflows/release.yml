@@ -1,0 +1,31 @@
+name: Release
+
+# Push a tag such as v0.2.0 to test, build and publish a GitHub release with
+# the macOS archives and SHA256SUMS that install.sh downloads.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test -race ./...
+      - name: Build archives
+        run: make release VERSION="${GITHUB_REF_NAME#v}"
+      - name: Check the binary reports the tag
+        run: |
+          tar -xzf dist/sweep-darwin-universal.tar.gz -C "$RUNNER_TEMP" sweep
+          "$RUNNER_TEMP/sweep" --version | grep -F "${GITHUB_REF_NAME#v}"
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/SHA256SUMS --title "$GITHUB_REF_NAME" --generate-notes
