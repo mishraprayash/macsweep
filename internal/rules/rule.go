@@ -43,7 +43,8 @@ type Rule struct {
 	// Synthetic rules are not matched by their match block, which only
 	// documents where they apply; built-in detectors decide instead, because
 	// they need to know which version is in use (old Homebrew versions in the
-	// classifier, version stores such as nvm's in versions.go).
+	// classifier, version stores such as nvm's in versions.go) or which apps
+	// are installed (leftovers.go).
 	Synthetic bool `yaml:"synthetic" json:"synthetic,omitempty"`
 
 	// Source is where the rule was defined, e.g. "builtin/node.yaml".

@@ -7,6 +7,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/mishraprayash/macsweep/internal/apps"
 	"github.com/mishraprayash/macsweep/internal/classifier"
 	"github.com/mishraprayash/macsweep/internal/report"
 	"github.com/mishraprayash/macsweep/internal/rules"
@@ -21,6 +22,10 @@ type engine struct {
 	configPath string
 	now        func() time.Time
 }
+
+// installedApps tells the rules which apps are installed. Tests replace it so
+// they never depend on this Mac's apps or run mdfind.
+var installedApps = func(home string) rules.AppLookup { return apps.Default(home) }
 
 // loadEngine builds the built-in plus user rules and the safety guard.
 func loadEngine(opts *globalOptions, home string) (*engine, error) {
@@ -47,6 +52,7 @@ func loadEngine(opts *globalOptions, home string) (*engine, error) {
 		Home:     home,
 		Rules:    append(builtin, cfg.Rules...),
 		Excludes: cfg.Exclude,
+		Apps:     installedApps(home),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("invalid rules:\n%w", err)

@@ -452,3 +452,33 @@ func TestUserFilesRulesSkipAppInternals(t *testing.T) {
 		}
 	}
 }
+
+// TestSyntheticRulesHaveDetectors: a synthetic rule matches nothing by
+// itself, and the cleaner's content-check policy depends on its detector, so
+// every one must be registered (and every registration must be used).
+func TestSyntheticRulesHaveDetectors(t *testing.T) {
+	b, err := Builtin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	synthetic := map[string]bool{}
+	for _, r := range b {
+		if !r.Synthetic {
+			continue
+		}
+		synthetic[r.ID] = true
+		if _, ok := DetectorFor(r.ID); !ok {
+			t.Errorf("synthetic rule %s has no detector in detectors.go", r.ID)
+		}
+	}
+	for id := range detectors {
+		if !synthetic[id] {
+			t.Errorf("detector %s has no synthetic rule", id)
+		}
+	}
+	for _, vs := range versionStores {
+		if !synthetic[vs.ruleID] {
+			t.Errorf("version store %s has no synthetic rule", vs.ruleID)
+		}
+	}
+}

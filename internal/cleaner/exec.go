@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/mishraprayash/macsweep/internal/audit"
 	"github.com/mishraprayash/macsweep/internal/macos"
@@ -138,7 +139,7 @@ func (e *Executor) cleanItem(it Item, scanRoot string, s *Summary) {
 		allOK := true
 		for _, ent := range entries {
 			child := filepath.Join(it.Path, ent.Name())
-			size := diskUsage(child)
+			size, _, _ := contentStats(child)
 			if err := e.Guard.CheckDeletable(child, it.Tier); err != nil {
 				e.record(s, it, child, size, audit.ResultSkipped, reasonOf(err), "")
 				allOK = false
@@ -210,9 +211,10 @@ func (e *Executor) removeOne(it Item, path string, size uint64, s *Summary) bool
 // needsContentCheck: directories are checked for .git/.env before removal,
 // except node_modules (packages ship their own .git), built-in caches at
 // fixed paths or fixed ~/Library locations (tool-managed; e.g. Cargo's
-// registry index is a git checkout) and version-store entries chosen by a
-// detector. User rules, project artifacts and wider globs (e.g. ~/.cache/*,
-// where any tool may keep anything) are always checked.
+// registry index is a git checkout) and what a tool-managed detector found
+// (old versions). User rules, project artifacts, other detectors' findings
+// (e.g. an uninstalled app's data) and wider globs (e.g. ~/.cache/*, where any
+// tool may keep anything) are always checked.
 func (e *Executor) needsContentCheck(it Item, path string) bool {
 	fi, err := os.Lstat(path)
 	if err != nil || !fi.IsDir() {
@@ -225,7 +227,11 @@ func (e *Executor) needsContentCheck(it Item, path string) bool {
 	if !ok || r.User {
 		return true
 	}
-	if len(r.Match.Path) > 0 || r.Synthetic {
+	if r.Synthetic {
+		d, _ := rules.DetectorFor(r.ID)
+		return !d.ToolManaged
+	}
+	if len(r.Match.Path) > 0 {
 		return false
 	}
 	if len(r.Match.Glob) == 0 {
@@ -349,7 +355,10 @@ func (e *Executor) ensureTrash(p *Plan) error {
 	return nil
 }
 
-// matcher re-runs the rules against a live path, for Revalidate.
+// matcher re-runs the rules against a live path, for Revalidate. A folder
+// matched on size or age (min_size, min_age_days) is measured again, so
+// something written into it since the scan keeps it; if it cannot be read
+// completely, it does not match.
 func (e *Executor) matcher() safety.Matcher {
 	return func(path string, info fs.FileInfo) (string, bool) {
 		cand := rules.Candidate{Path: path, IsDir: info.IsDir(), MTime: info.ModTime()}
@@ -359,6 +368,12 @@ func (e *Executor) matcher() safety.Matcher {
 		res, ok := e.Rules.Match(cand)
 		if !ok {
 			return "", false
+		}
+		if res.Deferred {
+			size, newest, err := contentStats(path)
+			if err != nil || !e.Rules.SizeAgeOK(res.Rule, size, newest) {
+				return "", false
+			}
 		}
 		return res.Rule.ID, true
 	}
@@ -414,19 +429,28 @@ func findSensitive(dir string) (string, error) {
 	return hit, err
 }
 
-// diskUsage returns allocated bytes under p (not following symlinks).
-func diskUsage(p string) uint64 {
-	var n uint64
-	_ = filepath.WalkDir(p, func(_ string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return nil //nolint:nilerr // best effort: count what we can read
+// contentStats returns the allocated bytes under p and the newest file
+// modification time in it (not following symlinks), measured like the
+// scanner's Node.Size and Node.Newest so a re-check agrees with the scan. It
+// counts what it can read and reports the first error, if any.
+func contentStats(p string) (size uint64, newest time.Time, err error) {
+	_ = filepath.WalkDir(p, func(_ string, d fs.DirEntry, walkErr error) error {
+		if walkErr == nil {
+			var fi fs.FileInfo
+			if fi, walkErr = d.Info(); walkErr == nil {
+				size += allocated(fi)
+				if !d.IsDir() && fi.ModTime().After(newest) {
+					newest = fi.ModTime()
+				}
+				return nil
+			}
 		}
-		if fi, err := d.Info(); err == nil {
-			n += allocated(fi)
+		if err == nil {
+			err = walkErr
 		}
-		return nil
+		return nil // keep counting what can be read
 	})
-	return n
+	return size, newest, err
 }
 
 func allocated(fi fs.FileInfo) uint64 {

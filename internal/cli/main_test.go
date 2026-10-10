@@ -10,6 +10,7 @@ import (
 
 	"github.com/mishraprayash/macsweep/internal/cleaner"
 	"github.com/mishraprayash/macsweep/internal/macos"
+	"github.com/mishraprayash/macsweep/internal/rules"
 )
 
 // TestMain is a backstop: even a test that forgets to use testutil.NewSandbox
@@ -27,6 +28,7 @@ func TestMain(m *testing.M) {
 	systemProbe = fakeSystemProbe
 	runningApps = func(context.Context) map[string]bool { return nil }
 	openFiles = func(context.Context) (*macos.OpenFiles, error) { return nil, nil }
+	installedApps = func(string) rules.AppLookup { return nil }
 	// Never run real cleanup tools, and do not depend on what is installed.
 	newRunner = func() cleaner.Runner { return testRunner }
 	lookPath = func(cmd string) (string, error) { return "/fake/bin/" + cmd, nil }

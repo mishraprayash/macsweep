@@ -261,8 +261,8 @@ func renderRule(w io.Writer, r *rules.Rule, saved *cache.Scan, fs []classifier.F
 	row("Tier", report.TierLabel(r.Tier)+"  "+tierMeaning(r.Tier))
 	row("What", r.Description)
 	row("Matches", describeMatch(r))
-	if r.Synthetic {
-		row("", "decided by sweep's built-in detector, which keeps the version in use")
+	if d, ok := rules.DetectorFor(r.ID); ok && r.Synthetic {
+		row("", d.Summary)
 	}
 	row("Regenerate", r.RegenerateHint)
 	if len(r.NativeClean) > 0 {

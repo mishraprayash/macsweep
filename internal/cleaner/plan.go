@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mishraprayash/macsweep/internal/apps"
 	"github.com/mishraprayash/macsweep/internal/cache"
 	"github.com/mishraprayash/macsweep/internal/classifier"
 	"github.com/mishraprayash/macsweep/internal/macos"
@@ -299,15 +300,6 @@ func appDataRoots(guard *safety.Guard) []string {
 	return out
 }
 
-// appFolderAliases maps Application Support folder names to the running
-// app's name where the two differ.
-var appFolderAliases = map[string]string{
-	"google":        "google chrome",
-	"bravesoftware": "brave browser",
-	"claude-3p":     "claude",
-	"code":          "visual studio code",
-}
-
 // runningOwner returns the running app (as lsappinfo names it) that owns an
 // app-data folder (~/Library/Caches/<bundle id>, ~/Library/Application
 // Support/<app>, ...), or "". Cleaning a running app's cache can corrupt it.
@@ -322,7 +314,8 @@ func runningOwner(path string, roots []string, running map[string]bool) string {
 		}
 		name, _, _ := strings.Cut(lp[len(root):], "/")
 		_, group, _ := strings.Cut(name, ".") // Group Containers: TEAMID.com.example.app
-		for _, n := range []string{name, appFolderAliases[name], group, strings.TrimPrefix(group, "group.")} {
+		app, _ := apps.AppForFolder(name)
+		for _, n := range []string{name, strings.ToLower(app), group, strings.TrimPrefix(group, "group.")} {
 			if n != "" && running[n] {
 				return n
 			}

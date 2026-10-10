@@ -151,3 +151,18 @@
     glob: "~/Library/Application Support/Claude*/vm_bundles"
   tier: REVIEW
   description: "Virtual machine image used by the Claude desktop app's agent features. The app downloads it again if removed; turn the feature off in the app to free it."
+
+- id: app-leftovers
+  category: "Apps: Leftovers"
+  synthetic: true # found by sweep's leftover detector: the app is not installed
+  match:
+    glob:
+      - "~/Library/Application Support/*"
+      - "~/Library/Containers/*"
+      - "~/Library/Group Containers/*"
+      - "~/Library/WebKit/*"
+      - "~/Library/HTTPStorages/*"
+    min_age_days: 30
+  tier: CAUTION
+  description: "Data left behind by an app that is no longer installed (settings, caches, downloaded content). Only folders that clearly belong to one app count: named by its bundle ID or app group, an Electron app's data folder, or a folder named after an app that left its settings in ~/Library. Nothing inside may have changed for 30 days, and nothing another rule leaves for you to review may be inside."
+  regenerate_hint: "not needed unless you reinstall the app; 'sweep restore' puts it back"

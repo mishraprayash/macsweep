@@ -799,3 +799,91 @@ func exists(e *env, rel string) bool {
 	_, err := os.Lstat(filepath.Join(e.s.Home, rel))
 	return err == nil
 }
+
+// noApps: nothing is installed, no group is declared, and nothing left
+// traces.
+type noApps struct{}
+
+func (noApps) BundleIDInstalled(string) bool { return false }
+func (noApps) NameInstalled(string) bool     { return false }
+func (noApps) GroupDeclared(string) bool     { return false }
+func (noApps) TracedIDs(string) []string     { return nil }
+
+func TestCleanAppLeftovers(t *testing.T) {
+	old := days(60)
+	e := newEnv(t, testutil.Tree{
+		"Library/Containers/com.gone.app/Data/blob":             testutil.File{Size: 100_000, MTime: old},
+		"Library/Group Containers/group.com.gone.chat/media":    testutil.File{Size: 100_000, MTime: old},
+		"Library/Application Support/com.gone.repo/.git/HEAD":   testutil.File{Size: 1, MTime: old},
+		"Library/Application Support/com.gone.repo/blob":        testutil.File{Size: 100_000, MTime: old},
+		"Library/Application Support/GoneElectron/Local State":  testutil.File{Size: 10, MTime: old},
+		"Library/Application Support/GoneElectron/IndexedDB/db": testutil.File{Size: 100_000, MTime: old},
+		// Something wrote here 5 days ago: not a leftover yet.
+		"Library/Containers/com.recent.app/Data/blob": testutil.File{Size: 100_000, MTime: days(5)},
+	})
+	b, err := rules.Builtin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.set, err = rules.NewSet(rules.Options{Home: e.s.Home, Rules: b, Apps: noApps{}, Now: func() time.Time { return now }}); err != nil {
+		t.Fatal(err)
+	}
+	sc := e.scan(t)
+
+	if p := e.plan(t, sc, Selector{Rules: []string{rules.LeftoverRuleID}}, Options{}); len(p.Items) != 0 {
+		t.Errorf("leftovers planned without --tier caution: %+v", p.Items)
+	}
+	p := e.plan(t, sc, Selector{MaxTier: safety.TierCaution, Rules: []string{rules.LeftoverRuleID}}, Options{})
+	planned := itemPaths(e, p)
+	if len(planned) != 4 {
+		t.Fatalf("planned %d leftovers, want 4: %v", len(planned), planned)
+	}
+	if _, ok := planned["Library/Containers/com.recent.app"]; ok {
+		t.Error("a folder changed 5 days ago was planned")
+	}
+	ex, _ := e.executor(t, nil)
+	sum := ex.Execute(context.Background(), p)
+	if sum.Trashed != 3 || sum.Skipped != 1 {
+		t.Errorf("summary = %+v", sum)
+	}
+	if !exists(e, "Library/Application Support/com.gone.repo/.git/HEAD") {
+		t.Error("a leftover holding a git repository was removed")
+	}
+	for _, gone := range []string{"Library/Containers/com.gone.app", "Library/Group Containers/group.com.gone.chat", "Library/Application Support/GoneElectron"} {
+		if exists(e, gone) {
+			t.Errorf("%s was not moved to the Trash", gone)
+		}
+	}
+}
+
+// TestAgeIsRecheckedBeforeCleaning: an item planned because it was untouched
+// for long enough is kept if something writes into it after the scan.
+func TestAgeIsRecheckedBeforeCleaning(t *testing.T) {
+	const ws = "Library/Application Support/Code/User/workspaceStorage/"
+	old := days(200)
+	e := newEnv(t, testutil.Tree{
+		"Library/Application Support/Code/Local State": testutil.File{Size: 10},
+		ws + "aaa/workspace.json":                      testutil.File{Size: 10, MTime: old},
+		ws + "aaa/state.vscdb":                         testutil.File{Size: 100_000, MTime: old},
+		ws + "bbb/workspace.json":                      testutil.File{Size: 10, MTime: old},
+		ws + "bbb/state.vscdb":                         testutil.File{Size: 100_000, MTime: old},
+	})
+	for _, d := range []string{ws + "aaa", ws + "bbb"} {
+		if err := os.Chtimes(filepath.Join(e.s.Home, d), old, old); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p := e.plan(t, e.scan(t), Selector{MaxTier: safety.TierCaution, Rules: []string{"vscode-old-workspace-storage"}}, Options{})
+	if len(p.Items) != 2 {
+		t.Fatalf("planned %d items, want 2: %+v", len(p.Items), p.Items)
+	}
+	// The editor opens workspace bbb again after the scan.
+	if err := os.Chtimes(filepath.Join(e.s.Home, ws+"bbb/state.vscdb"), days(1), days(1)); err != nil {
+		t.Fatal(err)
+	}
+	ex, _ := e.executor(t, nil)
+	sum := ex.Execute(context.Background(), p)
+	if sum.Trashed != 1 || sum.Skipped != 1 || exists(e, ws+"aaa") || !exists(e, ws+"bbb/state.vscdb") {
+		t.Errorf("summary = %+v", sum)
+	}
+}

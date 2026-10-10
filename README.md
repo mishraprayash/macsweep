@@ -28,7 +28,10 @@ dependencies.
 curl -fsSL https://raw.githubusercontent.com/mishraprayash/macsweep/main/install.sh | sh
 ```
 
-`SWEEP_VERSION=v0.3.0` pins a release; `SWEEP_INSTALL_DIR=/somewhere/bin` changes where it goes.
+If that folder is not on your `PATH` yet, the script adds one line to your shell's startup file
+(`~/.zshrc`, `~/.bash_profile` or fish's `conf.d`), once; open a new Terminal window afterwards.
+`SWEEP_VERSION=v0.4.0` pins a release, `SWEEP_INSTALL_DIR=/somewhere/bin` changes where it goes, and
+`SWEEP_NO_MODIFY_PATH=1` leaves your startup files alone.
 
 **With Go** (1.23+):
 
@@ -191,7 +194,7 @@ Sizes are base-10 (1 GB = 10⁹ bytes), matching Finder.
 
 ## Rules
 
-99 built-in rules cover the usual places a Mac fills up:
+100 built-in rules cover the usual places a Mac fills up:
 
 - **App caches**: `~/Library/Caches`, caches of sandboxed App Store apps (`~/Library/Containers`,
   `Group Containers`), and the caches Electron apps and Chromium browsers keep in
@@ -199,6 +202,15 @@ Sizes are base-10 (1 GB = 10⁹ bytes), matching Finder.
   web cache, GPU/code caches, service-worker offline copies (CAUTION), crash dumps, VS Code's
   extension and startup caches, and editor state for folders unopened for 90+ days (CAUTION).
   Caches of apps that are running are skipped.
+- **Leftovers of uninstalled apps** (CAUTION): data in `Application Support`, `Containers`,
+  `Group Containers`, `WebKit` and `HTTPStorages` that clearly belongs to one app that is gone.
+  "Clearly" means one of: named by its bundle ID or app group, an Electron app's data folder, or a
+  folder named after an app that left its settings in `~/Library`. "Gone" means:
+  - no app, launchd job or helper from that vendor is installed, and Spotlight knows none;
+  - for app groups, also that no installed app declares the group in its code signature;
+  - nothing inside has changed for 30 days (checked again right before cleaning).
+
+  If Spotlight is off or a signature can't be read, nothing is offered.
 - **JavaScript/TypeScript**: `node_modules`, `.next`, `.nuxt`, `.output`, `.svelte-kit`, `.turbo`,
   `.vite`, `.astro`, `.docusaurus`, `.cache`, `dist`/`build` next to a `package.json`; npm, npx,
   yarn, pnpm and bun caches; old nvm Node versions (the default and the active one are kept).

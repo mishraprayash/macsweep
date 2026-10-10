@@ -223,7 +223,7 @@ func (c *Classifier) applyOverrides(f *Finding) {
 // the one linked from <prefix>/opt/<formula>. Formulae whose current version
 // cannot be determined are left alone.
 func (c *Classifier) homebrewOldVersions(tree *scanner.Node) []Finding {
-	r, ok := c.set.ByID("homebrew-old-versions")
+	r, ok := c.set.ByID(rules.HomebrewRuleID)
 	if !ok {
 		return nil
 	}

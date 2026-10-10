@@ -61,6 +61,10 @@ type Set struct {
 	globs    []*compiled
 	excludes []pathGlob
 	stores   []storeDir
+
+	apps        AppLookup
+	leftovers   []leftoverRoot
+	reviewPaths []string // lowercased paths of REVIEW/PROTECTED path rules
 }
 
 type exactRule struct {
@@ -116,6 +120,9 @@ type Options struct {
 	Now func() time.Time
 	// Getenv reads the environment (e.g. $NVM_BIN). Defaults to os.Getenv.
 	Getenv func(string) string
+	// Apps tells which apps are installed, for the app-leftovers rule. Nil
+	// turns that rule off.
+	Apps AppLookup
 }
 
 // NewSet validates and compiles rules. It reports every problem at once.
@@ -167,6 +174,7 @@ func NewSet(o Options) (*Set, error) {
 		return nil, errors.Join(errs...)
 	}
 	s.compileStores()
+	s.compileLeftovers(o.Apps)
 	return s, nil
 }
 
@@ -339,6 +347,9 @@ func (s *Set) Match(cand Candidate) (Result, bool) {
 		}
 	}
 	if len(cands) == 0 {
+		if len(s.leftovers) > 0 {
+			return s.matchLeftover(path, cand.IsDir)
+		}
 		return Result{}, false
 	}
 	if comps == nil {
@@ -422,7 +433,7 @@ func (s *Set) check(c *compiled, path string, comps []string, cand Candidate) (R
 	}
 
 	if cand.IsDir {
-		res.Deferred = m.MinSize > 0 || m.MinAgeDays > 0
+		res.Deferred = c.hasSizeAge()
 	} else {
 		if !s.SizeAgeOK(c.Rule, cand.Size, cand.MTime) {
 			return Result{}, false
@@ -431,6 +442,12 @@ func (s *Set) check(c *compiled, path string, comps []string, cand Candidate) (R
 	}
 	res.Reason = strings.Join(reasons, "; ")
 	return res, true
+}
+
+// hasSizeAge reports whether the rule has min_size or min_age_days. For a
+// directory these are checked after the scan (Result.Deferred).
+func (r *Rule) hasSizeAge() bool {
+	return r.Match.MinSize > 0 || r.Match.MinAgeDays > 0
 }
 
 // SizeAgeOK checks a rule's min_size and min_age_days against a size and the
