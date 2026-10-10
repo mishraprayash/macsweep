@@ -62,7 +62,7 @@ sweep/
 |---|---|
 | `sweep doctor` | Check macOS version, Full Disk Access for the terminal, whether running as root, disk totals. Print fix instructions if FDA is missing. |
 | `sweep scan [path]` | Scan (default: `/` handled correctly, see §5) and save results to cache. Shows summary when done. |
-| `sweep` | Scan the home folder and show the summary (the one command a new user needs). |
+| `sweep` | At a terminal: a numbered menu (see space, clean up, review more, app leftovers, undo, rescan, permissions), scanning the home folder first if the saved scan is over an hour old. Each choice runs the matching command below. In scripts (no terminal) or with `--json`: scan the home folder. |
 | `sweep show [path]` | Read the last scan. No path: the report (disk overview, categories, reclaimable space by tier, top offenders). A folder: its contents with tiers. Any other path: what it is, which rule matched, its tier, and why (works for paths not in a rule). `--largest [--files\|--dirs]`: largest files/directories. Replaces the earlier `report`, `top`, `ls` and `explain`. |
 | `sweep clean` | Build a deletion plan from the last scan (scanning the home folder first if there is none), show it, ask for confirmation, execute. |
 | `sweep rules list` | Show all rules with category and tier. |

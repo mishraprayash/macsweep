@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -84,7 +83,7 @@ func newRestoreCmd(opts *globalOptions) *cobra.Command {
 					return errors.New("refusing to restore without confirmation: run from a terminal or pass --yes")
 				}
 				fmt.Fprintf(cmd.ErrOrStderr(), "\nRestore %d items? [y/N] ", ready)
-				line, _ := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
+				line, _ := promptInput(cmd.InOrStdin()).ReadString('\n')
 				if a := strings.ToLower(strings.TrimSpace(line)); a != "y" && a != "yes" {
 					return errors.New("not confirmed; nothing was moved")
 				}

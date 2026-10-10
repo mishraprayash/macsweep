@@ -6,8 +6,27 @@ A fast, safety-first disk analyzer and cleaner for macOS.
 inside "System Data"), sorts every finding by how safe it is to delete, and cleans only what you
 approve: dry run by default, Trash first, every action logged and reversible.
 
+Type `sweep` and pick from a menu. No commands to learn:
+
 ```
-$ sweep                  # scan your home folder (~10 s)
+$ sweep
+Your disk: 186.6 GB used, 8.5 GB free
+Safe to clean now: 23.1 GB   More you can choose to clean: 25.6 GB (474.7 MB from deleted apps)
+
+  1  See what is using space
+  2  See the largest files and folders
+  3  Clean up caches and build files (safe; asks first)
+  4  Clean up more: pick from larger items that take longer to rebuild
+  5  Remove leftovers of apps you deleted (pick items)
+  6  Undo the last clean-up
+  7  Scan again
+  8  Check permissions (Full Disk Access)
+  q  Quit
+```
+
+Every choice is also a command, shown when you pick it, for scripts and for people who prefer typing:
+
+```
 $ sweep show             # where the space goes, what is safe to remove
 $ sweep clean            # preview the cleanup
 $ sweep clean --execute  # do it (asks first; everything goes to the Trash)
@@ -59,8 +78,8 @@ For complete numbers, give your terminal **Full Disk Access** (System Settings â
 ## Workflow
 
 ```sh
-sweep                              # scan your home folder
-sweep scan                         # or the whole disk (or any folder: sweep scan ~/code)
+sweep                              # the menu (in a script: scan your home folder)
+sweep scan                         # scan the whole disk (or any folder: sweep scan ~/code)
 sweep show                         # the full picture
 sweep show ~/code --depth 2        # browse a folder: sizes, tiers, what is cleanable
 sweep show ~/code/app/.next        # one path: what it is, which rule, which tier, why

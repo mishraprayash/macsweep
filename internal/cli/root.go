@@ -38,9 +38,13 @@ func newRootCmd(version string, doctor doctorDeps) *cobra.Command {
 		Short: "macOS disk analyzer and safe cleaner",
 		Long: "sweep scans your disk, explains where the space goes (including macOS \"System Data\"),\n" +
 			"classifies findings by safety, and cleans only what you approve.\n\n" +
-			"Run 'sweep' alone to scan your home folder, then 'sweep show' and 'sweep clean'.",
+			"Run 'sweep' alone for a menu of everything it can do. In scripts, 'sweep' alone\n" +
+			"scans your home folder; every menu choice is also a command (below).",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if wantsMenu(cmd, opts) {
+				return runMenu(cmd, opts, func() *cobra.Command { return newRootCmd(version, doctor) })
+			}
 			home, err := homeDir()
 			if err != nil {
 				return err
@@ -114,9 +118,12 @@ func writeJSON(w io.Writer, v any) error {
 	return enc.Encode(v)
 }
 
-// Execute runs sweep and returns the process exit code.
+// Execute runs sweep and returns the process exit code. Ctrl-C cancels ctx;
+// stdin is wrapped so a prompt waiting for an answer returns then too.
 func Execute(ctx context.Context, version string) int {
-	return run(ctx, NewRootCmd(version), os.Stderr)
+	cmd := NewRootCmd(version)
+	cmd.SetIn(interruptible{ctx: ctx, r: os.Stdin})
+	return run(ctx, cmd, os.Stderr)
 }
 
 func run(ctx context.Context, cmd *cobra.Command, stderr io.Writer) int {

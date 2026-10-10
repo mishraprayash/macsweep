@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -78,10 +80,59 @@ func truncateLeft(s string, n int) string {
 // stdinIsTerminal reports whether r is an interactive terminal, for prompts.
 // Overridable in tests, which feed answers through a buffer.
 var stdinIsTerminal = func(r io.Reader) bool {
+	if _, ok := r.(terminalInput); ok {
+		return true // the menu's reader, made only for a terminal
+	}
+	if i, ok := r.(interruptible); ok {
+		r = i.r
+	}
 	f, ok := r.(*os.File)
 	if !ok {
 		return false
 	}
 	fi, err := f.Stat()
 	return err == nil && fi.Mode()&os.ModeCharDevice != 0
+}
+
+// interruptible is stdin whose reads end when ctx is cancelled (Ctrl-C),
+// so an interrupted sweep never hangs at a prompt. A read cut short leaves
+// one goroutine waiting on stdin; the process is exiting by then.
+type interruptible struct {
+	ctx context.Context
+	r   io.Reader
+}
+
+func (i interruptible) Read(p []byte) (int, error) {
+	if err := i.ctx.Err(); err != nil {
+		return 0, err
+	}
+	type result struct {
+		n   int
+		err error
+	}
+	buf := make([]byte, len(p))
+	done := make(chan result, 1)
+	go func() {
+		n, err := i.r.Read(buf)
+		done <- result{n, err}
+	}()
+	select {
+	case res := <-done:
+		return copy(p, buf[:res.n]), res.err
+	case <-i.ctx.Done():
+		return 0, i.ctx.Err()
+	}
+}
+
+// terminalInput is the menu's buffered stdin. The commands the menu runs
+// read their answers from it too, so no typed input is lost between them.
+type terminalInput struct{ *bufio.Reader }
+
+// promptInput returns the reader to read answers from r with: the menu's
+// own reader, or a new one.
+func promptInput(r io.Reader) *bufio.Reader {
+	if t, ok := r.(terminalInput); ok {
+		return t.Reader
+	}
+	return bufio.NewReader(r)
 }

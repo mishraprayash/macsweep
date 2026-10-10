@@ -157,7 +157,7 @@ func runClean(cmd *cobra.Command, opts *globalOptions, f *cleanFlags) error {
 	}
 
 	out, errOut := cmd.OutOrStdout(), cmd.ErrOrStderr()
-	in := bufio.NewReader(cmd.InOrStdin())
+	in := promptInput(cmd.InOrStdin())
 	if f.interactive {
 		if !stdinIsTerminal(cmd.InOrStdin()) {
 			return errors.New("--interactive needs a terminal")
