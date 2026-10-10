@@ -36,7 +36,7 @@ func sweepIn(t *testing.T, stdin string, terminal bool, args ...string) (string,
 	cmd.SetOut(&out)
 	cmd.SetErr(&errb)
 	cmd.SetIn(strings.NewReader(stdin))
-	cmd.SetArgs(args)
+	cmd.SetArgs(append([]string{}, args...)) // never nil: cobra would read os.Args
 	code := run(context.Background(), cmd, &errb)
 	return out.String(), errb.String(), code
 }
@@ -190,9 +190,9 @@ func TestCleanExecute(t *testing.T) {
 	if !strings.Contains(out, "Nothing selected") {
 		t.Errorf("second run still plans cleaned items:\n%s", out)
 	}
-	out, _, _ = sweep(t, "report")
+	out, _, _ = sweep(t, "show")
 	if !strings.Contains(out, "3 items") || !strings.Contains(out, "cleaned since this scan") {
-		t.Errorf("report does not mention the cleanup:\n%s", out)
+		t.Errorf("show does not mention the cleanup:\n%s", out)
 	}
 }
 
@@ -303,26 +303,26 @@ func TestToggle(t *testing.T) {
 	}
 }
 
-func TestLs(t *testing.T) {
+func TestShowFolder(t *testing.T) {
 	cleanFixture(t)
-	out, stderr, code := sweep(t, "ls")
+	out, stderr, code := sweep(t, "show", "~")
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr)
 	}
 	for _, want := range []string{"~", "code/", "Library/", "CLEANABLE", "Findings here"} {
 		if !strings.Contains(out, want) {
-			t.Errorf("ls missing %q:\n%s", want, out)
+			t.Errorf("show missing %q:\n%s", want, out)
 		}
 	}
 
-	out, _, _ = sweep(t, "ls", "~/code/web")
+	out, _, _ = sweep(t, "show", "~/code/web")
 	for _, want := range []string{"~/code/web", "node_modules/", "SAFE", "sweep clean --under ~/code/web"} {
 		if !strings.Contains(out, want) {
-			t.Errorf("ls ~/code/web missing %q:\n%s", want, out)
+			t.Errorf("show ~/code/web missing %q:\n%s", want, out)
 		}
 	}
 
-	out, _, _ = sweep(t, "ls", "~/code", "--depth", "2", "--json")
+	out, _, _ = sweep(t, "show", "~/code", "--depth", "2", "--json")
 	var o lsOutput
 	if err := json.Unmarshal([]byte(out), &o); err != nil {
 		t.Fatal(err)
@@ -337,27 +337,29 @@ func TestLs(t *testing.T) {
 		}
 	}
 	if !sawDeep || !sawNM || o.Cleanable["SAFE"].Count == 0 {
-		t.Errorf("ls --depth 2 JSON = %+v", o)
+		t.Errorf("show --depth 2 JSON = %+v", o)
 	}
 
+	// Findings, paths inside them and paths outside the scan are explained
+	// rather than listed.
 	for path, want := range map[string]string{
-		"~/code/web/node_modules":   "single SAFE finding",
-		"~/code/web/node_modules/r": "inside",
-		"/definitely/elsewhere":     "not inside the last scan",
+		"~/code/web/node_modules":   "Included in 'sweep clean' by default",
+		"~/code/web/node_modules/r": "as part of the enclosing match",
+		"/definitely/elsewhere":     "does not exist",
 	} {
-		_, stderr, code := sweep(t, "ls", path)
-		if code == 0 || !strings.Contains(stderr, want) {
-			t.Errorf("ls %s: exit %d, %q (want %q)", path, code, stderr, want)
+		out, stderr, code := sweep(t, "show", path)
+		if code != 0 || !strings.Contains(out, want) || strings.Contains(out, "CLEANABLE") {
+			t.Errorf("show %s: exit %d, %q %q (want %q)", path, code, out, stderr, want)
 		}
 	}
 }
 
-func TestSnapshotsInReportAndClean(t *testing.T) {
+func TestSnapshotsInShowAndClean(t *testing.T) {
 	cleanFixture(t)
-	out, _, _ := sweep(t, "report")
+	out, _, _ := sweep(t, "show")
 	for _, want := range []string{"Time Machine local snapshots (2)", "sweep clean --snapshots"} {
 		if !strings.Contains(out, want) {
-			t.Errorf("report missing %q", want)
+			t.Errorf("show missing %q", want)
 		}
 	}
 	out, _, code := sweep(t, "clean", "--snapshots", "--rule", "nothing-else")
@@ -519,5 +521,70 @@ func TestRenderLeftGroupsByReason(t *testing.T) {
 	renderLeft(&b, left, "/h", true)
 	if !strings.Contains(b.String(), "~/c0") || strings.Contains(b.String(), "more like this") {
 		t.Errorf("--verbose should list all:\n%s", b.String())
+	}
+}
+
+func TestBareSweepAndCleanScanHome(t *testing.T) {
+	s := testutil.NewSandbox(t)
+	testutil.Build(t, s.Home, testutil.Tree{
+		"code/web/package.json":        testutil.File{Size: 10},
+		"code/web/node_modules/r/i.js": testutil.File{Size: 2_000_000},
+	})
+	before := testutil.Snapshot(t, filepath.Join(s.Home, "code"))
+
+	// With no saved scan, clean scans the home folder first, then plans.
+	out, stderr, code := sweep(t, "clean")
+	if code != 0 || !strings.Contains(stderr, "scanning your home folder first") || !strings.Contains(out, "node_modules") {
+		t.Fatalf("clean without a scan: exit %d\n%s\n%s", code, out, stderr)
+	}
+
+	out, stderr, code = sweep(t)
+	if code != 0 || !strings.Contains(out, "Scanned ~") || !strings.Contains(out, "sweep show") {
+		t.Fatalf("bare sweep: exit %d\n%s\n%s", code, out, stderr)
+	}
+	if _, _, code := sweep(t, "nonsense"); code == 0 {
+		t.Error("an unknown command was accepted")
+	}
+	testutil.AssertUnchanged(t, filepath.Join(s.Home, "code"), before)
+}
+
+func TestShowLargestUnderPath(t *testing.T) {
+	cleanFixture(t)
+	out, stderr, code := sweep(t, "show", "--largest", "~/code/rs")
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, stderr)
+	}
+	if !strings.Contains(out, "~/code/rs/target") || strings.Contains(out, "node_modules") || strings.Contains(out, "thesis.pdf") {
+		t.Errorf("show --largest ~/code/rs listed paths outside it:\n%s", out)
+	}
+	if _, stderr, code := sweep(t, "show", "--largest", "/definitely/elsewhere"); code == 0 || !strings.Contains(stderr, "not inside the last scan") {
+		t.Errorf("outside path: exit %d %q", code, stderr)
+	}
+}
+
+func TestLongPlanIsSummarized(t *testing.T) {
+	s := testutil.NewSandbox(t)
+	tree := testutil.Tree{}
+	for i := range planRows + planSlack + 3 {
+		tree[fmt.Sprintf("code/p%02d/package.json", i)] = testutil.File{Size: 10}
+		tree[fmt.Sprintf("code/p%02d/node_modules/r/i.js", i)] = testutil.File{Size: int64(1_000_000 + i*10_000)}
+	}
+	testutil.Build(t, s.Home, tree)
+	if _, stderr, code := sweep(t, "scan", "~"); code != 0 {
+		t.Fatalf("scan: %s", stderr)
+	}
+	out, _, _ := sweep(t, "clean")
+	n := planRows + planSlack + 3
+	for _, want := range []string{"~/code/p27/node_modules", fmt.Sprintf("… and %d smaller items", n-planRows), "Dev: JavaScript", "--verbose lists every item"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("summarized plan missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "~/code/p00/node_modules") {
+		t.Errorf("smallest item listed without --verbose:\n%s", out)
+	}
+	out, _, _ = sweep(t, "clean", "-v")
+	if !strings.Contains(out, "~/code/p00/node_modules") || strings.Contains(out, "smaller items") {
+		t.Errorf("--verbose does not list every item:\n%s", out)
 	}
 }

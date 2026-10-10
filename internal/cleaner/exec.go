@@ -13,6 +13,7 @@ import (
 	"syscall"
 
 	"github.com/mishraprayash/macsweep/internal/audit"
+	"github.com/mishraprayash/macsweep/internal/macos"
 	"github.com/mishraprayash/macsweep/internal/rules"
 	"github.com/mishraprayash/macsweep/internal/safety"
 )
@@ -40,6 +41,12 @@ type Executor struct {
 	Runner   Runner
 	// Out receives one line per action, and native command output.
 	Out io.Writer
+	// OpenFiles lists the files running processes have open, read once just
+	// before cleaning starts. If it fails, nothing is moved or deleted. Nil
+	// skips the check (tests only).
+	OpenFiles func() (*macos.OpenFiles, error)
+
+	open *macos.OpenFiles
 }
 
 // Outcome is what happened to one path.
@@ -81,6 +88,18 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) *Summary {
 			}
 		}
 		return s
+	}
+	if e.OpenFiles != nil {
+		open, err := e.OpenFiles()
+		if err != nil {
+			for _, it := range p.Items {
+				if it.Method != MethodNative {
+					e.record(s, it, it.Path, it.Size, audit.ResultSkipped, "could not check which files are in use: "+err.Error(), "")
+				}
+			}
+			return s
+		}
+		e.open = open
 	}
 	for _, it := range p.Items {
 		if it.Method == MethodNative {
@@ -144,8 +163,13 @@ func (e *Executor) cleanItem(it Item, scanRoot string, s *Summary) {
 	}
 }
 
-// removeOne trashes or deletes a single path after the content check.
+// removeOne trashes or deletes a single path after the in-use and content
+// checks.
 func (e *Executor) removeOne(it Item, path string, size uint64, s *Summary) bool {
+	if cmd, open := e.open.Under(path); open {
+		e.record(s, it, path, size, audit.ResultSkipped, "in use by "+cmd, "")
+		return false
+	}
 	if e.needsContentCheck(it, path) {
 		if hit, err := findSensitive(path); err != nil {
 			e.record(s, it, path, size, audit.ResultSkipped, "could not inspect contents: "+err.Error(), "")

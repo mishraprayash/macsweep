@@ -73,9 +73,6 @@ func newSession(t time.Time) string {
 	return t.UTC().Format("20060102T150405Z") + "-" + hex.EncodeToString(b)
 }
 
-// Session identifies this run in the log.
-func (l *Log) Session() string { return l.session }
-
 // Path is the log file's path.
 func (l *Log) Path() string { return l.f.Name() }
 

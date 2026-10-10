@@ -13,6 +13,8 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+
+	"github.com/mishraprayash/macsweep/internal/scanner"
 )
 
 // globalOptions are the flags shared by every command.
@@ -35,7 +37,16 @@ func newRootCmd(version string, doctor doctorDeps) *cobra.Command {
 		Use:   "sweep",
 		Short: "macOS disk analyzer and safe cleaner",
 		Long: "sweep scans your disk, explains where the space goes (including macOS \"System Data\"),\n" +
-			"classifies findings by safety, and cleans only what you approve.",
+			"classifies findings by safety, and cleans only what you approve.\n\n" +
+			"Run 'sweep' alone to scan your home folder, then 'sweep show' and 'sweep clean'.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			home, err := homeDir()
+			if err != nil {
+				return err
+			}
+			return runScan(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), opts, home, scanner.Options{Root: home})
+		},
 		Version:       version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -54,10 +65,7 @@ func newRootCmd(version string, doctor doctorDeps) *cobra.Command {
 	root.AddCommand(
 		newDoctorCmd(opts, doctor),
 		newScanCmd(opts),
-		newReportCmd(opts),
-		newTopCmd(opts),
-		newLsCmd(opts),
-		newExplainCmd(opts),
+		newShowCmd(opts),
 		newCleanCmd(opts),
 		newRestoreCmd(opts),
 		newRulesCmd(opts),

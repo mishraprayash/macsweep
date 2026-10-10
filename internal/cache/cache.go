@@ -1,4 +1,4 @@
-// Package cache persists the last scan so later commands (report, top,
+// Package cache persists the last scan so later commands (show,
 // clean) can reuse it without rescanning.
 package cache
 
@@ -20,7 +20,7 @@ import (
 const formatVersion = 3
 
 // ErrNoScan is returned by Load when no cached scan exists.
-var ErrNoScan = errors.New("no saved scan found; run 'sweep scan' first")
+var ErrNoScan = errors.New("no saved scan found; run 'sweep' (or 'sweep scan <path>') first")
 
 // DefaultPath is where the last scan is stored for the given home directory.
 func DefaultPath(home string) string {

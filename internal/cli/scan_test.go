@@ -28,7 +28,7 @@ func sweep(t *testing.T, args ...string) (string, string, int) {
 	cmd := newRootCmd("test", fakeDoctorDeps(macos.AccessGranted))
 	cmd.SetOut(&out)
 	cmd.SetErr(&errb)
-	cmd.SetArgs(args)
+	cmd.SetArgs(append([]string{}, args...)) // never nil: cobra would read os.Args
 	code := run(context.Background(), cmd, &errb)
 	return out.String(), errb.String(), code
 }
@@ -49,7 +49,7 @@ func fixture(t *testing.T) *testutil.Sandbox {
 	return s
 }
 
-func TestScanThenTop(t *testing.T) {
+func TestScanThenShowLargest(t *testing.T) {
 	s := fixture(t)
 	before := testutil.Snapshot(t, s.Tree)
 
@@ -73,13 +73,13 @@ func TestScanThenTop(t *testing.T) {
 		t.Fatalf("cache not written to sandbox: %v", err)
 	}
 
-	out, _, code = sweep(t, "top", "-n", "3")
+	out, _, code = sweep(t, "show", "--largest", "-n", "3")
 	if code != 0 {
-		t.Fatalf("top exit %d", code)
+		t.Fatalf("show --largest exit %d", code)
 	}
 	for _, want := range []string{"Largest files", "holiday.mov", "react/index.js", "Largest directories", "node_modules"} {
 		if !strings.Contains(out, want) {
-			t.Errorf("top output missing %q:\n%s", want, out)
+			t.Errorf("show --largest output missing %q:\n%s", want, out)
 		}
 	}
 	// Sparse file: real allocation is tiny, so it must not top the list.
@@ -87,15 +87,15 @@ func TestScanThenTop(t *testing.T) {
 		t.Errorf("sparse Docker.raw ranked above a real 4 MB file:\n%s", out)
 	}
 
-	files, _, _ := sweep(t, "top", "--files")
+	files, _, _ := sweep(t, "show", "--largest", "--files")
 	if strings.Contains(files, "Largest directories") {
 		t.Error("--files still printed directories")
 	}
-	dirs, _, _ := sweep(t, "top", "--dirs")
+	dirs, _, _ := sweep(t, "show", "--largest", "--dirs")
 	if strings.Contains(dirs, "Largest files") {
 		t.Error("--dirs still printed files")
 	}
-	if _, _, code := sweep(t, "top", "--files", "--dirs"); code == 0 {
+	if _, _, code := sweep(t, "show", "--largest", "--files", "--dirs"); code == 0 {
 		t.Error("--files with --dirs should be rejected")
 	}
 
@@ -116,7 +116,7 @@ func TestScanJSON(t *testing.T) {
 		t.Errorf("unexpected summary: %+v", got)
 	}
 
-	out, _, _ = sweep(t, "top", "--json", "-n", "2")
+	out, _, _ = sweep(t, "show", "--largest", "--json", "-n", "2")
 	var top topOutput
 	if err := json.Unmarshal([]byte(out), &top); err != nil {
 		t.Fatalf("invalid top JSON: %v\n%s", err, out)
@@ -138,10 +138,10 @@ func TestScanTildeAndVerbose(t *testing.T) {
 	}
 }
 
-func TestTopWithoutScan(t *testing.T) {
+func TestShowLargestWithoutScan(t *testing.T) {
 	testutil.NewSandbox(t)
-	_, stderr, code := sweep(t, "top")
-	if code != 1 || !strings.Contains(stderr, "run 'sweep scan' first") {
+	_, stderr, code := sweep(t, "show", "--largest")
+	if code != 1 || !strings.Contains(stderr, "run 'sweep' (or 'sweep scan <path>') first") {
 		t.Errorf("exit %d, stderr %q", code, stderr)
 	}
 }
@@ -174,7 +174,7 @@ func TestScanErrors(t *testing.T) {
 	for _, args := range [][]string{
 		{"scan", filepath.Join(s.Tree, "missing")},
 		{"scan", "a", "b"},
-		{"top", "-n", "0"},
+		{"show", "-n", "0"},
 	} {
 		if _, _, code := sweep(t, args...); code == 0 {
 			t.Errorf("%v succeeded, want failure", args)
@@ -244,7 +244,7 @@ func homeFixture(t *testing.T) *testutil.Sandbox {
 	return s
 }
 
-func TestScanClassifiesAndTopShowsTiers(t *testing.T) {
+func TestScanClassifiesAndShowLargestTiers(t *testing.T) {
 	s := homeFixture(t)
 	out, stderr, code := sweep(t, "scan", "~")
 	if code != 0 {
@@ -269,9 +269,9 @@ func TestScanClassifiesAndTopShowsTiers(t *testing.T) {
 		t.Errorf("tier totals = %+v", sum.Tiers)
 	}
 
-	out, _, _ = sweep(t, "top", "--dirs")
+	out, _, _ = sweep(t, "show", "--largest", "--dirs")
 	if !strings.Contains(out, "TIER") || !regexpMatch(out, `SAFE\s+~/code/web/node_modules`) {
-		t.Errorf("top --dirs missing tiers:\n%s", out)
+		t.Errorf("show --largest --dirs missing tiers:\n%s", out)
 	}
 	_ = s
 }
@@ -332,7 +332,7 @@ func TestConfigErrors(t *testing.T) {
 	}
 }
 
-func TestExplainCommand(t *testing.T) {
+func TestShowPath(t *testing.T) {
 	s := homeFixture(t)
 	if _, _, code := sweep(t, "scan", "~"); code != 0 {
 		t.Fatal("scan failed")
@@ -350,25 +350,25 @@ func TestExplainCommand(t *testing.T) {
 		{"~/code/nothing-here", []string{"does not exist"}},
 	}
 	for _, tt := range tests {
-		out, stderr, code := sweep(t, "explain", tt.path)
+		out, stderr, code := sweep(t, "show", tt.path)
 		if code != 0 {
-			t.Errorf("explain %s: exit %d %s", tt.path, code, stderr)
+			t.Errorf("show %s: exit %d %s", tt.path, code, stderr)
 			continue
 		}
 		for _, w := range tt.want {
 			if !strings.Contains(out, w) {
-				t.Errorf("explain %s missing %q:\n%s", tt.path, w, out)
+				t.Errorf("show %s missing %q:\n%s", tt.path, w, out)
 			}
 		}
 	}
 
-	out, _, _ := sweep(t, "explain", "~/code/rs/target", "--json")
+	out, _, _ := sweep(t, "show", "~/code/rs/target", "--json")
 	var got map[string]any
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatal(err)
 	}
 	if got["rule_id"] != "rust-target" || got["tier"] != "SAFE" || got["project_root"] != filepath.Join(s.Home, "code/rs") {
-		t.Errorf("explain JSON = %v", got)
+		t.Errorf("show JSON = %v", got)
 	}
 }
 
@@ -376,33 +376,33 @@ func regexpMatch(s, pattern string) bool {
 	return regexp.MustCompile(pattern).MatchString(s)
 }
 
-func TestReportCommand(t *testing.T) {
+func TestShowOverview(t *testing.T) {
 	homeFixture(t)
-	if _, _, code := sweep(t, "report"); code != 1 {
+	if _, _, code := sweep(t, "show"); code != 1 {
 		t.Error("report without a scan should fail")
 	}
 	if _, stderr, code := sweep(t, "scan", "~"); code != 0 {
 		t.Fatalf("scan: %s", stderr)
 	}
-	out, stderr, code := sweep(t, "report")
+	out, stderr, code := sweep(t, "show")
 	if code != 0 {
-		t.Fatalf("report exit %d: %s", code, stderr)
+		t.Fatalf("show exit %d: %s", code, stderr)
 	}
-	for _, want := range []string{"sweep report", "1. Disk overview", "500.0 GB total", "Only ~ was scanned",
+	for _, want := range []string{"sweep show", "1. Disk overview", "500.0 GB total", "Only ~ was scanned",
 		"Where your space is going", "Dev: JavaScript", "System Data", "Reclaimable space",
-		"~/code/web/node_modules", "Protected (for your information)", "Next steps", "sweep clean --tier safe --dry-run"} {
+		"~/code/web/node_modules", "Protected (for your information)", "Next steps", "sweep clean --tier safe"} {
 		if !strings.Contains(out, want) {
-			t.Errorf("report missing %q:\n%s", want, out)
+			t.Errorf("show missing %q:\n%s", want, out)
 		}
 	}
 
-	out, _, _ = sweep(t, "report", "--json", "--top", "2")
+	out, _, _ = sweep(t, "show", "--json", "-n", "2")
 	var rep map[string]any
 	if err := json.Unmarshal([]byte(out), &rep); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 	if c, _ := rep["cleanup_candidates"].([]any); len(c) != 2 {
-		t.Errorf("--top 2 gave %d candidates", len(c))
+		t.Errorf("-n 2 gave %d candidates", len(c))
 	}
 	for _, key := range []string{"disk", "categories", "system_data", "tiers", "stale_projects", "review", "protected", "next_steps"} {
 		if _, ok := rep[key]; !ok {

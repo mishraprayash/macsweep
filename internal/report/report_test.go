@@ -248,7 +248,7 @@ func TestFindingSections(t *testing.T) {
 	for _, st := range r.NextSteps {
 		cmds[st.Command] = true
 	}
-	for _, want := range []string{"sweep clean --tier safe --dry-run", "sweep clean --tier caution --dry-run", "sweep clean --older-than 30d --dry-run", "sweep scan", "sweep explain <path>"} {
+	for _, want := range []string{"sweep clean --tier safe", "sweep clean --tier caution", "sweep clean --older-than 30d", "sweep scan", "sweep show <path>"} {
 		if !cmds[want] {
 			t.Errorf("next steps missing %q: %v", want, cmds)
 		}
@@ -347,7 +347,7 @@ func TestRenderText(t *testing.T) {
 		last = i
 	}
 	for _, want := range []string{"Unaccounted", "Other volumes", "█", "SAFE", "PROTECTED", "not deletable",
-		"~/code/old/node_modules", "stale: no activity since", "Regenerate:", "base-10", "APFS clones", "sweep clean --tier safe --dry-run"} {
+		"~/code/old/node_modules", "stale: no activity since", "Regenerate:", "base-10", "APFS clones", "sweep clean --tier safe"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("text report missing %q", want)
 		}

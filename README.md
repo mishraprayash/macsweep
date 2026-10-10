@@ -7,10 +7,11 @@ inside "System Data"), sorts every finding by how safe it is to delete, and clea
 approve: dry run by default, Trash first, every action logged and reversible.
 
 ```
-$ sweep scan          # ~15–25 s for 2.2 M files / 155 GB on an 8-core M-series Mac
-$ sweep report        # where the space goes, what is safe to remove
-$ sweep clean --name node_modules --name .next            # preview
-$ sweep clean --name node_modules --name .next --execute  # do it (asks first)
+$ sweep                  # scan your home folder (~10 s)
+$ sweep show             # where the space goes, what is safe to remove
+$ sweep clean            # preview the cleanup
+$ sweep clean --execute  # do it (asks first; everything goes to the Trash)
+$ sweep restore          # changed your mind? put it all back
 ```
 
 Safety beats completeness: a false "safe to delete" is treated as a critical bug, a missed cleanup as
@@ -27,7 +28,7 @@ dependencies.
 curl -fsSL https://raw.githubusercontent.com/mishraprayash/macsweep/main/install.sh | sh
 ```
 
-`SWEEP_VERSION=v0.2.0` pins a release; `SWEEP_INSTALL_DIR=/somewhere/bin` changes where it goes.
+`SWEEP_VERSION=v0.3.0` pins a release; `SWEEP_INSTALL_DIR=/somewhere/bin` changes where it goes.
 
 **With Go** (1.23+):
 
@@ -55,17 +56,19 @@ For complete numbers, give your terminal **Full Disk Access** (System Settings �
 ## Workflow
 
 ```sh
-sweep doctor                       # permissions, macOS version, disk totals
-sweep scan                         # whole disk (or: sweep scan ~/code)
-sweep report                       # the full picture
-sweep top -n 30 --dirs             # largest folders
-sweep ls ~/code --depth 2          # browse the scan: sizes, tiers, what is cleanable
-sweep explain ~/code/app/.next     # what is this, which rule, which tier, why
+sweep                              # scan your home folder
+sweep scan                         # or the whole disk (or any folder: sweep scan ~/code)
+sweep show                         # the full picture
+sweep show ~/code --depth 2        # browse a folder: sizes, tiers, what is cleanable
+sweep show ~/code/app/.next        # one path: what it is, which rule, which tier, why
+sweep show --largest --dirs        # largest folders (add a path to narrow it)
 sweep clean ...                    # plan → confirm → Trash (see below)
 sweep restore                      # put back what the last clean moved to the Trash
+sweep rules                        # every rule sweep knows, and what each found
+sweep doctor                       # permissions, macOS version, disk totals
 ```
 
-Everything except `clean --execute` and `restore --execute` is read-only. `scan` writes only its own
+Everything except `clean --execute` and `restore --execute` is read-only. Scanning writes only its own
 cache file (`~/Library/Caches/sweep/last-scan.gob.gz`).
 
 ## Risk tiers
@@ -133,14 +136,16 @@ With `--execute`:
   -cache`, `brew cleanup`, `docker system prune`, `xcrun simctl delete unavailable`, `tmutil
   thinlocalsnapshots`. The plan shows the exact command first, and `--skip-native` turns all of
   them off.
-- **Running apps.** Caches of apps that are running are skipped.
+- **Running apps and open files.** Caches of apps that are running are skipped, and so is anything
+  with a file some process has open (checked with `lsof` when planning and again just before cleaning;
+  if that check cannot run, nothing is cleaned).
 - **Audit log.** Every action is appended to `~/Library/Logs/sweep/history.jsonl`, including where
   each trashed item went. `sweep restore` uses it to move a session's items back. Finder's
   "Put Back" does not know about them.
 
 ## The report
 
-`sweep report` (or `--json`) has nine sections:
+`sweep show` (or `--json`) has nine sections:
 
 1. **Disk overview.** Used vs scanned, with the gap explained: other APFS volumes (Preboot,
    Recovery, VM) by name, then snapshots, purgeable space and unreadable paths.
@@ -156,7 +161,7 @@ With `--execute`:
 9. **Next steps**, the commands worth running next.
 
 ```
-$ sweep explain ~/code/web/node_modules
+$ sweep show ~/code/web/node_modules
 ~/code/web/node_modules
   Tier        SAFE  fully regenerable, no user state
   Rule        node-modules · Dev: JavaScript  (builtin/javascript.yaml)
@@ -167,7 +172,7 @@ $ sweep explain ~/code/web/node_modules
   Size        11.0 MB (scan from just now)
   Clean       Included in 'sweep clean' by default; moved to the Trash.
 
-$ sweep ls ~/code --depth 2
+$ sweep show ~/code --depth 2
 ~/code  58.0 MB · 9 files · scan from just now
 SIZE     SHARE  CLEANABLE  TIER     NAME
 23.0 MB  40%    23.0 MB    -        web/
@@ -272,13 +277,13 @@ prove that no rule, user config or flag gets a protected path into a plan.
   directory reads 2.9× faster, with a readdir+lstat fallback for other filesystems.
 - **Relative opens.** Subdirectories are opened relative to their parent (`openat`), so paths are
   not re-resolved.
-- **Bounded parallelism.** About 2× the core count, measured: more workers only add kernel
+- **Bounded parallelism.** About 1.5× the core count, measured: more workers only add kernel
   contention.
 - **Cheap rule matching.** The no-match path does no allocation and costs about 0.5 µs per entry.
 - **Sizes from disk blocks.** Sizes are allocated blocks, so sparse files like `Docker.raw` show real
   usage. Hard links count once, symlinks are never followed, and the sealed system volume and
   firmlinked data volume are walked once each, never double-counted.
-- **Small saved scan.** About 0.7 MB for a full disk, so `report`, `top`, `ls`, `explain` and `clean`
+- **Small saved scan.** About 0.7 MB for a full disk, so `show` and `clean`
   plans all take well under 0.1 s.
 
 ## Limitations

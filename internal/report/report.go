@@ -14,7 +14,7 @@ import (
 	"github.com/mishraprayash/macsweep/internal/scanner"
 )
 
-// Report is everything `sweep report` shows, in order. The text and JSON
+// Report is everything `sweep show` shows, in order. The text and JSON
 // renderers both use it, so they always agree.
 type Report struct {
 	ScanRoot  string    `json:"scan_root"`
@@ -722,13 +722,13 @@ func nextSteps(r *Report, s *cache.Scan) []Step {
 		tier[t.Tier] = t
 	}
 	if t := tier[safety.TierSafe]; t.Count > 0 {
-		steps = append(steps, Step{"sweep clean --tier safe --dry-run", fmt.Sprintf("preview removing %s of regenerable files (moved to the Trash)", Bytes(t.Size))})
+		steps = append(steps, Step{"sweep clean --tier safe", fmt.Sprintf("preview removing %s of regenerable files (moved to the Trash)", Bytes(t.Size))})
 	}
 	if len(r.StaleProjects) > 0 {
-		steps = append(steps, Step{"sweep clean --older-than 30d --dry-run", fmt.Sprintf("preview cleaning only the %d stale projects' artifacts", len(r.StaleProjects))})
+		steps = append(steps, Step{"sweep clean --older-than 30d", fmt.Sprintf("preview cleaning only the %d stale projects' artifacts", len(r.StaleProjects))})
 	}
 	if t := tier[safety.TierCaution]; t.Count > 0 {
-		steps = append(steps, Step{"sweep clean --tier caution --dry-run", fmt.Sprintf("preview %s that is regenerable but slower to restore", Bytes(t.Size))})
+		steps = append(steps, Step{"sweep clean --tier caution", fmt.Sprintf("preview %s that is regenerable but slower to restore", Bytes(t.Size))})
 	}
 	seen := map[string]bool{}
 	for _, f := range s.Findings {
@@ -746,6 +746,6 @@ func nextSteps(r *Report, s *cache.Scan) []Step {
 	if !r.WholeDisk {
 		steps = append(steps, Step{"sweep scan", "scan the whole disk to see everything, including System Data"})
 	}
-	steps = append(steps, Step{"sweep explain <path>", "see why any path got its tier"})
+	steps = append(steps, Step{"sweep show <path>", "see why any path got its tier"})
 	return steps
 }

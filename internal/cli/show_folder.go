@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 
 	"github.com/mishraprayash/macsweep/internal/cache"
 	"github.com/mishraprayash/macsweep/internal/classifier"
@@ -43,46 +42,6 @@ type lsOutput struct {
 	Cleanable map[string]report.TierTotal `json:"cleanable"`
 }
 
-func newLsCmd(opts *globalOptions) *cobra.Command {
-	var depth, limit int
-	cmd := &cobra.Command{
-		Use:   "ls [path]",
-		Short: "Browse the last scan: what is inside a folder and what is cleanable",
-		Long: "ls lists a folder's contents from the last scan, largest first, with each\n" +
-			"item's tier and how much of it is cleanable. Use it to inspect a folder before\n" +
-			"running 'sweep clean --under <folder>'. It reads only the saved scan.",
-		Args: cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			home, err := homeDir()
-			if err != nil {
-				return err
-			}
-			saved, err := cache.Load(cache.DefaultPath(home))
-			if err != nil {
-				return err
-			}
-			path := saved.Result.Root
-			if len(args) == 1 {
-				if path, err = filepath.Abs(expandHome(args[0], home)); err != nil {
-					return err
-				}
-			}
-			out, err := buildLs(saved, path, depth, limit)
-			if err != nil {
-				return err
-			}
-			if opts.JSON {
-				return writeJSON(cmd.OutOrStdout(), out)
-			}
-			renderLs(cmd.OutOrStdout(), out, home)
-			return nil
-		},
-	}
-	cmd.Flags().IntVarP(&depth, "depth", "d", 1, "how many levels to show")
-	cmd.Flags().IntVarP(&limit, "n", "n", 25, "entries per folder")
-	return cmd
-}
-
 func buildLs(s *cache.Scan, path string, depth, limit int) (*lsOutput, error) {
 	if depth < 1 || limit < 1 {
 		return nil, fmt.Errorf("--depth and -n must be at least 1")
@@ -96,11 +55,7 @@ func buildLs(s *cache.Scan, path string, depth, limit int) (*lsOutput, error) {
 
 	node := tree.Find(path)
 	if node == nil {
-		return nil, lsMissing(s, path)
-	}
-	if f, ok := findings[strings.ToLower(path)]; ok && f.IsDir {
-		return nil, fmt.Errorf("%s is a single %s finding (%s, rule %s); its contents were not kept. Try 'sweep explain %s'",
-			path, f.Tier, report.Bytes(f.Size), f.RuleID, path)
+		return nil, fmt.Errorf("%s is not a folder in the last scan", path)
 	}
 
 	out := &lsOutput{Path: path, Size: node.Size, Files: node.FileCount, ScannedAt: s.Result.FinishedAt, Cleanable: map[string]report.TierTotal{}}
@@ -175,24 +130,6 @@ func buildLs(s *cache.Scan, path string, depth, limit int) (*lsOutput, error) {
 	}
 	walk(node, path, 0)
 	return out, nil
-}
-
-// lsMissing explains why a path has no node in the saved tree.
-func lsMissing(s *cache.Scan, path string) error {
-	root := filepath.Clean(s.Result.Root)
-	lp := strings.ToLower(path)
-	lr := strings.ToLower(root)
-	if lp != lr && !strings.HasPrefix(lp, strings.TrimSuffix(lr, "/")+"/") {
-		return fmt.Errorf("%s is not inside the last scan (of %s); run 'sweep scan %s' first", path, root, path)
-	}
-	for _, f := range s.Findings {
-		lf := strings.ToLower(f.Path)
-		if f.IsDir && strings.HasPrefix(lp, lf+"/") {
-			return fmt.Errorf("%s is inside %s, a single %s finding (rule %s) whose contents were not kept. Try 'sweep explain %s'",
-				path, f.Path, f.Tier, f.RuleID, path)
-		}
-	}
-	return fmt.Errorf("%s is under 1 MB or is a file; the saved scan keeps folders of 1 MB or more", path)
 }
 
 func renderLs(w io.Writer, o *lsOutput, home string) {

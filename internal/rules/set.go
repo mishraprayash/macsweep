@@ -254,9 +254,6 @@ func (s *Set) ByID(id string) (*Rule, bool) {
 	return c.Rule, true
 }
 
-// Home returns the home directory rules were compiled against.
-func (s *Set) Home() string { return s.home }
-
 // priority orders competing matches: the most specific selector wins; ties go
 // to the stricter tier, then to the rule defined first.
 func (c *compiled) priority(lit int) int {

@@ -65,6 +65,9 @@ type Options struct {
 	RunningApps map[string]bool
 	// Snapshots adds thinning local Time Machine snapshots to the plan.
 	Snapshots bool
+	// OpenFiles holds the paths running processes have open; items with
+	// anything open inside are left alone. Nil means none are known.
+	OpenFiles *macos.OpenFiles
 }
 
 // SnapshotsRuleID identifies the Time Machine snapshot item in plans and the
@@ -229,6 +232,10 @@ func BuildPlan(s *cache.Scan, sel Selector, set *rules.Set, guard *safety.Guard,
 			}
 		}
 
+		if cmd, open := o.OpenFiles.Under(f.Path); open {
+			leave(f, "in use by %s", cmd)
+			continue
+		}
 		it.Contents = r.CleanContents
 		lp := strings.ToLower(f.Path)
 		inTrash := lp == trash || strings.HasPrefix(lp, trash+"/")

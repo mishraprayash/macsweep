@@ -26,6 +26,7 @@ import (
 	"github.com/mishraprayash/macsweep/internal/report"
 	"github.com/mishraprayash/macsweep/internal/rules"
 	"github.com/mishraprayash/macsweep/internal/safety"
+	"github.com/mishraprayash/macsweep/internal/scanner"
 )
 
 // Plans above either limit need the total size (or DELETE) typed back.
@@ -44,6 +45,7 @@ var (
 		apps, _ := macos.RunningApps(ctx) // best effort: no list, no warnings
 		return apps
 	}
+	openFiles = macos.ListOpenFiles
 )
 
 type cleanFlags struct {
@@ -70,7 +72,8 @@ func newCleanCmd(opts *globalOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "clean",
 		Short: "Plan and (with --execute) carry out a cleanup from the last scan",
-		Long: `clean builds a deletion plan from the last scan and shows it. Nothing is
+		Long: `clean builds a deletion plan from the last scan (scanning your home folder first
+if there is none) and shows it. Nothing is
 changed unless you pass --execute, and even then you are asked to confirm.
 
 Only SAFE items are included by default; add --tier caution for CAUTION items.
@@ -87,7 +90,7 @@ Narrow the plan with filters (all must match):
   sweep clean --interactive                         pick items one by one
   sweep clean --snapshots --interactive             also thin Time Machine local snapshots
 
-Inspect first with 'sweep report', 'sweep ls <folder>', or 'sweep explain <path>'.`,
+Inspect first with 'sweep show', 'sweep show <folder>', or 'sweep show <path>'.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runClean(cmd, opts, f)
@@ -113,6 +116,13 @@ Inspect first with 'sweep report', 'sweep ls <folder>', or 'sweep explain <path>
 	return cmd
 }
 
+// plannedOpenFiles is best effort: the plan just shows fewer warnings without
+// it. Execution reads the list again and refuses to clean if it cannot.
+func plannedOpenFiles(ctx context.Context) *macos.OpenFiles {
+	open, _ := openFiles(ctx)
+	return open
+}
+
 func runClean(cmd *cobra.Command, opts *globalOptions, f *cleanFlags) error {
 	if f.execute && cmd.Flags().Changed("dry-run") && f.dryRun {
 		return errors.New("--dry-run and --execute contradict each other; pick one")
@@ -130,12 +140,17 @@ func runClean(cmd *cobra.Command, opts *globalOptions, f *cleanFlags) error {
 		return err
 	}
 	saved, err := cache.Load(cache.DefaultPath(home))
+	if errors.Is(err, cache.ErrNoScan) {
+		fmt.Fprintln(cmd.ErrOrStderr(), "No saved scan yet; scanning your home folder first.")
+		saved, _, err = scanAndSave(cmd.Context(), cmd.ErrOrStderr(), opts, home, scanner.Options{Root: home})
+	}
 	if err != nil {
 		return err
 	}
 	plan, err := cleaner.BuildPlan(saved, sel, eng.set, eng.guard, cleaner.Options{
 		Permanent: f.permanent, SkipNative: f.skipNative, Now: eng.now(), LookPath: lookPath,
 		RunningApps: runningApps(cmd.Context()), Snapshots: f.snapshots,
+		OpenFiles: plannedOpenFiles(cmd.Context()),
 	})
 	if err != nil {
 		return err
@@ -186,6 +201,7 @@ func runClean(cmd *cobra.Command, opts *globalOptions, f *cleanFlags) error {
 	ex := &cleaner.Executor{
 		Guard: eng.guard, Rules: eng.set, TrashDir: filepath.Join(home, ".Trash"),
 		Audit: log, Runner: newRunner(), Out: out,
+		OpenFiles: func() (*macos.OpenFiles, error) { return openFiles(cmd.Context()) },
 	}
 	if opts.JSON {
 		ex.Out = errOut
@@ -325,10 +341,16 @@ func renderPlan(w io.Writer, p *cleaner.Plan, home string, dryRun, verbose bool)
 		fmt.Fprintln(w)
 		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(tw, "  #\tSIZE\tTIER\tACTION\tPATH")
-		for i, it := range p.Items {
+		shown := p.Items
+		if !verbose && len(shown) > planRows+planSlack {
+			shown = shown[:planRows]
+		}
+		for _, it := range p.Items {
 			if it.Method != cleaner.MethodNative {
 				files++
 			}
+		}
+		for i, it := range shown {
 			note := ""
 			if it.Stale {
 				note = "  (stale project)"
@@ -339,6 +361,7 @@ func renderPlan(w io.Writer, p *cleaner.Plan, home string, dryRun, verbose bool)
 			fmt.Fprintf(tw, "  %d\t%s\t%s\t%s\t%s%s\n", i+1, report.Bytes(it.Size), it.Tier, methodLabel(it), shortPath(it.Path, home), note)
 		}
 		_ = tw.Flush()
+		renderRest(w, p.Items[len(shown):])
 	}
 
 	var fileBytes, nativeBytes uint64
@@ -363,12 +386,69 @@ func renderPlan(w io.Writer, p *cleaner.Plan, home string, dryRun, verbose bool)
 		fmt.Fprintln(w, "\nLeft out:")
 		renderLeft(w, p.Left, home, verbose)
 		if p.NeverCleaned > 0 {
-			fmt.Fprintf(w, "  %d REVIEW/PROTECTED items (%s) are never cleaned; see 'sweep report'.\n", p.NeverCleaned, report.Bytes(p.NeverCleanedSize))
+			fmt.Fprintf(w, "  %d REVIEW/PROTECTED items (%s) are never cleaned; see 'sweep show'.\n", p.NeverCleaned, report.Bytes(p.NeverCleanedSize))
 		}
 		if p.FilteredOut > 0 {
 			fmt.Fprintf(w, "  %d other findings did not match your filters.\n", p.FilteredOut)
 		}
 	}
+}
+
+// A plan longer than planRows+planSlack items lists only the planRows
+// largest; the rest are summarized by category (--verbose lists them all).
+const (
+	planRows  = 20
+	planSlack = 5
+)
+
+// renderRest summarizes the plan items not listed one by one.
+func renderRest(w io.Writer, rest []cleaner.Item) {
+	if len(rest) == 0 {
+		return
+	}
+	type group struct {
+		name  string
+		n     int
+		bytes uint64
+	}
+	var total uint64
+	idx := map[string]int{}
+	var groups []group
+	for _, it := range rest {
+		total += it.Size
+		i, ok := idx[it.Category]
+		if !ok {
+			i = len(groups)
+			idx[it.Category] = i
+			groups = append(groups, group{name: it.Category})
+		}
+		groups[i].n++
+		groups[i].bytes += it.Size
+	}
+	sort.SliceStable(groups, func(i, j int) bool { return groups[i].bytes > groups[j].bytes })
+	fmt.Fprintf(w, "  … and %d smaller items (%s):\n", len(rest), report.Bytes(total))
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	for i, g := range groups {
+		if i == planSlack {
+			var n int
+			var b uint64
+			for _, o := range groups[i:] {
+				n, b = n+o.n, b+o.bytes
+			}
+			fmt.Fprintf(tw, "      %s\t%s\t%s\n", "other categories", itemsCount(n), report.Bytes(b))
+			break
+		}
+		fmt.Fprintf(tw, "      %s\t%s\t%s\n", g.name, itemsCount(g.n), report.Bytes(g.bytes))
+	}
+	_ = tw.Flush()
+	fmt.Fprintln(w, color.New(color.Faint).Sprint("  --verbose lists every item; --interactive lets you pick."))
+}
+
+func itemsCount(n int) string {
+	if n == 1 {
+		return "1 item"
+	}
+	return fmt.Sprintf("%d items", n)
 }
 
 // confirm asks before executing. Large plans always need the total typed

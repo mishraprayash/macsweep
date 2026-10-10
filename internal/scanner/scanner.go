@@ -38,10 +38,12 @@ const (
 	maxRecorded = 1000
 )
 
-// DefaultWorkers is 2×CPU cores, clamped to [4, 32]. Measured on an
-// 8-core M-series Mac scanning 2.2 M files: 4×cores was 40% slower and used
-// twice the system CPU (kernel contention); 1×cores left the SSD idle.
-func DefaultWorkers() int { return min(max(runtime.NumCPU()*2, 4), 32) }
+// DefaultWorkers is 1.5×CPU cores, clamped to [4, 32]. Measured on an
+// 8-core M-series Mac scanning 2.2 M files (warm cache, 3 runs each):
+// 1.5×cores took 14.5 s; 2×cores took 16.5–30 s with 30% more system CPU;
+// 3×cores and 4×cores were slower still (kernel contention in openat and
+// getattrlistbulk); 1×cores left the SSD idle.
+func DefaultWorkers() int { return min(max(runtime.NumCPU()*3/2, 4), 32) }
 
 // Options configures a scan.
 type Options struct {

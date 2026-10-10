@@ -62,10 +62,9 @@ sweep/
 |---|---|
 | `sweep doctor` | Check macOS version, Full Disk Access for the terminal, whether running as root, disk totals. Print fix instructions if FDA is missing. |
 | `sweep scan [path]` | Scan (default: `/` handled correctly, see §5) and save results to cache. Shows summary when done. |
-| `sweep report` | Render the last scan: disk overview, category breakdown, reclaimable space by tier, top offenders. |
-| `sweep top [-n 30] [--files\|--dirs]` | Largest files/directories from the last scan. |
-| `sweep explain <path>` | Say what a path is, which rule matched, its tier, and why. Works for paths not in a rule ("unclassified, user data"). |
-| `sweep clean` | Build a deletion plan from the last scan, show it, ask for confirmation, execute. |
+| `sweep` | Scan the home folder and show the summary (the one command a new user needs). |
+| `sweep show [path]` | Read the last scan. No path: the report (disk overview, categories, reclaimable space by tier, top offenders). A folder: its contents with tiers. Any other path: what it is, which rule matched, its tier, and why (works for paths not in a rule). `--largest [--files\|--dirs]`: largest files/directories. Replaces the earlier `report`, `top`, `ls` and `explain`. |
+| `sweep clean` | Build a deletion plan from the last scan (scanning the home folder first if there is none), show it, ask for confirmation, execute. |
 | `sweep rules list` | Show all rules with category and tier. |
 
 Global flags: `--json`, `--no-color`, `--verbose`, `--config <file>`.
@@ -185,7 +184,7 @@ Write the safety package **first**, with exhaustive tests, before the cleaner ex
 
 ---
 
-## 9. Report Output (default `sweep report`)
+## 9. Report Output (`sweep show`)
 
 Sections, in order:
 
@@ -230,7 +229,7 @@ For each phase: summarize what you built, what's tested, and any decisions I sho
 
 ## 12. Definition of Done
 
-- `sweep scan / && sweep report` gives an accurate, readable picture of my disk in under ~2 minutes on a typical 500 GB SSD with Full Disk Access.
+- `sweep scan / && sweep show` gives an accurate, readable picture of my disk in under ~2 minutes on a typical 500 GB SSD with Full Disk Access.
 - Sum of category totals is within a few percent of `statfs` used space, with the remainder explained.
 - `sweep clean` cannot delete anything PROTECTED or REVIEW under any combination of flags or config, proven by tests.
 - Every deletion is reversible (Trash) by default and recorded in the audit log.

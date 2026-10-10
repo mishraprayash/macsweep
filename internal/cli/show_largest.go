@@ -3,6 +3,8 @@ package cli
 import (
 	"fmt"
 	"io"
+	"path/filepath"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -51,63 +53,63 @@ type topOutput struct {
 	Dirs      []topDir  `json:"dirs,omitempty"`
 }
 
-func newTopCmd(opts *globalOptions) *cobra.Command {
-	var n int
-	var onlyFiles, onlyDirs bool
-	cmd := &cobra.Command{
-		Use:   "top",
-		Short: "List the largest files and directories from the last scan",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			if n <= 0 {
-				return fmt.Errorf("-n must be positive, got %d", n)
-			}
-			home, err := homeDir()
-			if err != nil {
-				return err
-			}
-			saved, err := cache.Load(cache.DefaultPath(home))
-			if err != nil {
-				return err
-			}
-			res := saved.Result
-			tiers := map[string]safety.Tier{}
-			for _, f := range saved.Findings {
-				tiers[f.Path] = f.Tier
-			}
-			out := topOutput{Root: res.Root, ScannedAt: res.FinishedAt}
-			if !onlyDirs {
-				out.Files = []topFile{}
-				for _, f := range head(res.TopFiles, n) {
-					out.Files = append(out.Files, topFile{FileEntry: f, Tier: tierOf(tiers, f.Path)})
-				}
-			}
-			if !onlyFiles {
-				out.Dirs = []topDir{}
-				for _, d := range res.Tree.TopDirs(n, dirDominance) {
-					out.Dirs = append(out.Dirs, topDir{
-						Path: d.Path, Size: d.Size, ApparentSize: d.ApparentSize, Files: d.FileCount,
-						Dirs: d.DirCount, Newest: d.Newest, Inaccessible: d.Inaccessible, Tier: tierOf(tiers, d.Path),
-					})
-				}
-			}
-			if opts.JSON {
-				return writeJSON(cmd.OutOrStdout(), out)
-			}
-			return renderTop(cmd.OutOrStdout(), out, res, n, opts.Verbose, home)
-		},
+// showLargest lists the largest files and folders in the saved scan, or only
+// those under path when one is given.
+func showLargest(cmd *cobra.Command, opts *globalOptions, f *showFlags, saved *cache.Scan, path, home string) error {
+	n := f.entries(25)
+	res := saved.Result
+	within := func(p string) bool { return path == "" || isWithin(p, path) }
+	if path != "" && !within(res.Root) && !isWithin(path, res.Root) {
+		return fmt.Errorf("%s is not inside the last scan (of %s); run 'sweep scan %s' first", path, res.Root, path)
 	}
-	cmd.Flags().IntVarP(&n, "n", "n", 30, "number of entries to show")
-	cmd.Flags().BoolVar(&onlyFiles, "files", false, "only show files")
-	cmd.Flags().BoolVar(&onlyDirs, "dirs", false, "only show directories")
-	cmd.MarkFlagsMutuallyExclusive("files", "dirs")
-	return cmd
+	tiers := map[string]safety.Tier{}
+	for _, fd := range saved.Findings {
+		tiers[fd.Path] = fd.Tier
+	}
+	out := topOutput{Root: res.Root, ScannedAt: res.FinishedAt}
+	if path != "" {
+		out.Root = path
+	}
+	if !f.onlyDirs {
+		out.Files = []topFile{}
+		for _, fe := range res.TopFiles {
+			if within(fe.Path) && len(out.Files) < n {
+				out.Files = append(out.Files, topFile{FileEntry: fe, Tier: tierOf(tiers, fe.Path)})
+			}
+		}
+	}
+	if !f.onlyFiles {
+		out.Dirs = []topDir{}
+		for _, d := range res.Tree.TopDirs(-1, dirDominance) {
+			if d.Path == path || !within(d.Path) || len(out.Dirs) == n {
+				continue
+			}
+			out.Dirs = append(out.Dirs, topDir{
+				Path: d.Path, Size: d.Size, ApparentSize: d.ApparentSize, Files: d.FileCount,
+				Dirs: d.DirCount, Newest: d.Newest, Inaccessible: d.Inaccessible, Tier: tierOf(tiers, d.Path),
+			})
+		}
+	}
+	if opts.JSON {
+		return writeJSON(cmd.OutOrStdout(), out)
+	}
+	return renderTop(cmd.OutOrStdout(), out, res, n, opts.Verbose, home)
+}
+
+// isWithin reports whether p is dir or inside it (case-insensitively, like APFS).
+func isWithin(p, dir string) bool {
+	lp, ld := strings.ToLower(filepath.Clean(p)), strings.ToLower(filepath.Clean(dir))
+	return lp == ld || strings.HasPrefix(lp, strings.TrimSuffix(ld, "/")+"/")
 }
 
 func renderTop(w io.Writer, out topOutput, res *scanner.Result, n int, verbose bool, home string) error {
 	bold, faint := color.New(color.Bold), color.New(color.Faint)
-	fmt.Fprintf(w, "%s\n", faint.Sprintf("From scan of %s, %s (%s)",
-		shortPath(out.Root, home), report.Age(out.ScannedAt, time.Now()), out.ScannedAt.Format("2006-01-02 15:04")))
+	under := "From "
+	if out.Root != res.Root {
+		under = "Under " + shortPath(out.Root, home) + ", from "
+	}
+	fmt.Fprintf(w, "%s\n", faint.Sprintf("%sscan of %s, %s (%s)", under,
+		shortPath(res.Root, home), report.Age(out.ScannedAt, time.Now()), out.ScannedAt.Format("2006-01-02 15:04")))
 
 	if out.Files != nil {
 		fmt.Fprintf(w, "\n%s\n", bold.Sprint("Largest files"))

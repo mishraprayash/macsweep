@@ -26,6 +26,7 @@ func TestMain(m *testing.M) {
 	_ = os.Setenv("NO_COLOR", "1")
 	systemProbe = fakeSystemProbe
 	runningApps = func(context.Context) map[string]bool { return nil }
+	openFiles = func(context.Context) (*macos.OpenFiles, error) { return nil, nil }
 	// Never run real cleanup tools, and do not depend on what is installed.
 	newRunner = func() cleaner.Runner { return testRunner }
 	lookPath = func(cmd string) (string, error) { return "/fake/bin/" + cmd, nil }
@@ -34,7 +35,6 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// fakeDiskProbe describes a 500 GB disk with the usual APFS volumes.
 // testRunner records native commands instead of running them.
 var testRunner = &recordingRunner{}
 

@@ -56,7 +56,7 @@ func newScanCmd(opts *globalOptions) *cobra.Command {
 		Use:   "scan [path]",
 		Short: "Scan the disk (default /) and save the results",
 		Long: "Scan measures allocated disk usage under path (default: the whole disk) and saves\n" +
-			"the result so report, top, and clean can use it. Scanning only reads; it never\n" +
+			"the result for show and clean. Scanning only reads; it never\n" +
 			"modifies anything except its own cache file.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -84,7 +84,7 @@ func newScanCmd(opts *globalOptions) *cobra.Command {
 			})
 		},
 	}
-	cmd.Flags().IntVar(&workers, "workers", 0, "concurrent directory readers (default 2×CPU cores)")
+	cmd.Flags().IntVar(&workers, "workers", 0, "concurrent directory readers (default 1.5×CPU cores)")
 	cmd.Flags().BoolVar(&crossDevice, "cross-device", false, "descend into other mounted filesystems (network mounts are always skipped)")
 	cmd.Flags().StringVar(&cpuProfile, "cpuprofile", "", "write a CPU profile (for performance work)")
 	_ = cmd.Flags().MarkHidden("cpuprofile")
@@ -92,9 +92,21 @@ func newScanCmd(opts *globalOptions) *cobra.Command {
 }
 
 func runScan(ctx context.Context, stdout, stderr io.Writer, opts *globalOptions, home string, so scanner.Options) error {
-	eng, err := loadEngine(opts, home)
+	_, sum, err := scanAndSave(ctx, stderr, opts, home, so)
 	if err != nil {
 		return err
+	}
+	if opts.JSON {
+		return writeJSON(stdout, sum)
+	}
+	return renderScan(stdout, sum, opts.Verbose, home)
+}
+
+// scanAndSave scans, classifies, and saves the result as the last scan.
+func scanAndSave(ctx context.Context, stderr io.Writer, opts *globalOptions, home string, so scanner.Options) (*cache.Scan, scanSummary, error) {
+	eng, err := loadEngine(opts, home)
+	if err != nil {
+		return nil, scanSummary{}, err
 	}
 	cls := eng.classifier()
 	// Disk totals, the APFS volume layout and snapshots are gathered while the
@@ -108,9 +120,9 @@ func runScan(ctx context.Context, stdout, stderr io.Writer, opts *globalOptions,
 	progress.clear()
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
-			return fmt.Errorf("scan cancelled; the previous saved scan was left unchanged: %w", err)
+			return nil, scanSummary{}, fmt.Errorf("scan cancelled; the previous saved scan was left unchanged: %w", err)
 		}
-		return err
+		return nil, scanSummary{}, err
 	}
 
 	findings := cls.Findings(res) // before compaction: needs the full tree
@@ -121,13 +133,9 @@ func runScan(ctx context.Context, stdout, stderr io.Writer, opts *globalOptions,
 	info := <-probed
 	saved := &cache.Scan{Result: res, Findings: findings, Disk: info.disk, Container: info.container, Snapshots: info.snapshots}
 	if err := cache.Save(sum.CachePath, saved); err != nil {
-		return err
+		return nil, scanSummary{}, err
 	}
-
-	if opts.JSON {
-		return writeJSON(stdout, sum)
-	}
-	return renderScan(stdout, sum, opts.Verbose, home)
+	return saved, sum, nil
 }
 
 func summarize(res *scanner.Result) scanSummary {
@@ -251,7 +259,7 @@ func renderScan(w io.Writer, s scanSummary, verbose bool, home string) error {
 	}
 	fmt.Fprintf(w, "Note: %s\n", report.ClonesNote)
 	fmt.Fprintf(w, "%s\n", report.UnitsNote)
-	fmt.Fprintf(w, "\nSaved to %s. Next: %s or %s\n", shortPath(s.CachePath, home), bold.Sprint("sweep top"), bold.Sprint("sweep explain <path>"))
+	fmt.Fprintf(w, "\nSaved to %s. Next: %s or %s\n", shortPath(s.CachePath, home), bold.Sprint("sweep show"), bold.Sprint("sweep clean"))
 	return nil
 }
 

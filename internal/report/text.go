@@ -47,7 +47,7 @@ func RenderText(w io.Writer, r *Report, o TextOptions) error {
 	}
 	p := &printer{w: w, o: o, bold: color.New(color.Bold), faint: color.New(color.Faint)}
 
-	p.linef("%s %s", p.bold.Sprint("sweep report"), p.faint.Sprintf("· scan of %s · %s (%s)",
+	p.linef("%s %s", p.bold.Sprint("sweep show"), p.faint.Sprintf("· scan of %s · %s (%s)",
 		p.short(r.ScanRoot), Age(r.ScannedAt, o.Now), r.ScannedAt.Format("2006-01-02 15:04")))
 
 	if r.CleanedItems > 0 {
@@ -329,7 +329,7 @@ func (p *printer) items(items []Item, empty string) {
 			p.wrap("    ", p.faint.Sprintf("%s: %s", p.short(it.Path), it.Why))
 		}
 	} else {
-		p.linef("  %s", p.faint.Sprint("--verbose explains each item; 'sweep explain <path>' explains one."))
+		p.linef("  %s", p.faint.Sprint("--verbose explains each item; 'sweep show <path>' explains one."))
 	}
 }
 

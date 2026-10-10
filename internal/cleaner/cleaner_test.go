@@ -745,3 +745,57 @@ func TestXDGCacheContentCheck(t *testing.T) {
 		}
 	}
 }
+
+// lsofOutput fakes `lsof -F pcn` output: process 42 ("node") has the given
+// paths open.
+func lsofOutput(paths ...string) []byte {
+	out := "p42\ncnode\nfcwd\nn/\n"
+	for _, p := range paths {
+		out += "f3\nn" + p + "\n"
+	}
+	return []byte(out)
+}
+
+func TestFilesInUseAreLeftAlone(t *testing.T) {
+	e := newEnv(t, devTree())
+	sc := e.scan(t)
+	open := macos.ParseOpenFiles(lsofOutput(filepath.Join(e.s.Home, "code/web/node_modules/r/i.js")), 1)
+	sel := Selector{Names: []string{"node_modules"}}
+
+	p := e.plan(t, sc, sel, Options{LookPath: yesLookPath, OpenFiles: open})
+	got := itemPaths(e, p)
+	if _, ok := got["code/web/node_modules"]; ok {
+		t.Error("node_modules with an open file was planned")
+	}
+	if _, ok := got["code/old/node_modules"]; !ok {
+		t.Error("node_modules with nothing open is missing")
+	}
+	if len(p.Left) != 1 || !strings.Contains(p.Left[0].Reason, "in use by node") {
+		t.Errorf("left out = %+v", p.Left)
+	}
+
+	// The file is opened after planning: execution reads the list again.
+	p = e.plan(t, sc, sel, Options{LookPath: yesLookPath})
+	ex, _ := e.executor(t, nil)
+	ex.OpenFiles = func() (*macos.OpenFiles, error) { return open, nil }
+	sum := ex.Execute(context.Background(), p)
+	if sum.Trashed != 1 || sum.Skipped != 1 || !exists(e, "code/web/node_modules/r/i.js") || exists(e, "code/old/node_modules") {
+		t.Errorf("summary = %+v", sum)
+	}
+}
+
+func TestOpenFilesUnknownCleansNothing(t *testing.T) {
+	e := newEnv(t, devTree())
+	p := e.plan(t, e.scan(t), Selector{Names: []string{"node_modules"}}, Options{LookPath: yesLookPath})
+	ex, _ := e.executor(t, nil)
+	ex.OpenFiles = func() (*macos.OpenFiles, error) { return nil, errors.New("lsof: not found") }
+	sum := ex.Execute(context.Background(), p)
+	if sum.Trashed != 0 || sum.Skipped != 2 || !exists(e, "code/web/node_modules") || !exists(e, "code/old/node_modules") {
+		t.Errorf("summary = %+v", sum)
+	}
+}
+
+func exists(e *env, rel string) bool {
+	_, err := os.Lstat(filepath.Join(e.s.Home, rel))
+	return err == nil
+}

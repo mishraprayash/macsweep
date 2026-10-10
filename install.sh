@@ -4,7 +4,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/mishraprayash/macsweep/main/install.sh | sh
 #
 # Environment:
-#   SWEEP_VERSION      a release tag such as v0.2.0 (default: the latest release)
+#   SWEEP_VERSION      a release tag such as v0.3.0 (default: the latest release)
 #   SWEEP_INSTALL_DIR  where to put the binary (default: ~/.local/bin)
 set -eu
 

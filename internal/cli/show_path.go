@@ -1,18 +1,14 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
 	"strings"
 	"text/tabwriter"
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 
-	"github.com/mishraprayash/macsweep/internal/cache"
 	"github.com/mishraprayash/macsweep/internal/classifier"
 	"github.com/mishraprayash/macsweep/internal/report"
 	"github.com/mishraprayash/macsweep/internal/safety"
@@ -21,43 +17,6 @@ import (
 type explainOutput struct {
 	classifier.Explanation
 	Clean string `json:"clean"`
-}
-
-func newExplainCmd(opts *globalOptions) *cobra.Command {
-	return &cobra.Command{
-		Use:   "explain <path>",
-		Short: "Explain what a path is, which rule matched, its tier, and why",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			home, err := homeDir()
-			if err != nil {
-				return err
-			}
-			eng, err := loadEngine(opts, home)
-			if err != nil {
-				return err
-			}
-			path, err := filepath.Abs(expandHome(args[0], home))
-			if err != nil {
-				return err
-			}
-			var data *classifier.ScanData
-			saved, err := cache.Load(cache.DefaultPath(home))
-			switch {
-			case err == nil:
-				data = &classifier.ScanData{Result: saved.Result, Findings: saved.Findings}
-			case !errors.Is(err, cache.ErrNoScan) && opts.Verbose:
-				fmt.Fprintf(cmd.ErrOrStderr(), "note: ignoring saved scan: %v\n", err)
-			}
-
-			e := eng.classifier().Explain(path, data)
-			out := explainOutput{Explanation: e, Clean: cleanVerdict(e)}
-			if opts.JSON {
-				return writeJSON(cmd.OutOrStdout(), out)
-			}
-			return renderExplain(cmd.OutOrStdout(), out, home)
-		},
-	}
 }
 
 // cleanVerdict says, in one sentence, what 'sweep clean' would do with it.
